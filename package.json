@@ -1,25 +1,92 @@
 {
-  "name": "electron-react-starter-project",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
-    "electron": "^1.7.6",
-    "halogen": "^0.2.0",
-    "react": "^15.6.1",
-    "react-dom": "^15.6.1",
-    "react-redux": "^5.0.6",
-    "react-scripts": "1.0.13",
-    "redux": "^3.7.2",
-    "redux-thunk": "^2.2.0",
-    "video.js": "^6.2.7"
-  },
-  "homepage": "./",
+  "name": "electron-js-video-player",
+  "version": "1.0.0",
+  "description": "基于Electron.js的视频学习播放器",
+  "main": "main.js",
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test --env=jsdom",
-    "eject": "react-scripts eject",
-    "electron": "electron .",
-    "electron-dev": "ELECTRON_START_URL=http://localhost:3000 electron ."
+    "start": "electron .",
+    "dev": "concurrently \"npm:start-react\" \"npm:start-electron\"",
+    "start-react": "react-app-rewired start",
+    "start-electron": "wait-on http://localhost:3000 && electron . --devServerUrl=http://localhost:3000",
+    "build": "react-app-rewired build",
+    "package": "npm run build && electron-builder build --win --mac --linux",
+    "debug": "electron --inspect=5858 ."
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.0.2",
+    "@mui/material": "^7.0.2",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "better-sqlite3": "^8.5.0",
+    "electron-log": "^5.0.0",
+    "jimp": "^1.6.0",
+    "onnxruntime-node": "^1.21.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "subtitle": "^4.2.2-alpha.0",
+    "video.js": "^8.22.0",
+    "web-vitals": "^2.1.4"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "customize-cra": "^1.0.0",
+    "electron": "^25.3.1",
+    "electron-builder": "^24.6.3",
+    "react-app-rewired": "^2.2.1",
+    "react-scripts": "5.0.1",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.yourapp.videolearningplayer",
+    "productName": "视频学习播放器",
+    "files": [
+      "build/**/*",
+      "node_modules/**/*",
+      "main.js",
+      "preload.js"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Education"
+    }
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
