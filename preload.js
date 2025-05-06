@@ -1,6 +1,8 @@
 // preload.js
 // 预加载脚本，将Node.js API暴露给渲染进程
 
+console.log('--- Preload script: START ---');
+
 // 引入必要模块
 const { contextBridge, ipcRenderer } = require('electron');
 // 移除未使用的 Node.js 模块导入
@@ -10,30 +12,30 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // 白名单，列出允许渲染进程调用的IPC通道
 const allowedInvokeChannels = [
-  'perform-ocr', 
-  'perform-ocr-from-frame', 
   'extract-frame',
-  'selectVideo', // 已有
-  'getWatchTime', // 已有
-  'saveLearningRecord', // 已有
-  'getLearningRecords' // 已有
+  'selectSubtitle',
+  'getWatchTime',
+  'saveLearningRecord',
+  'getLearningRecords',
+  'readVideo'
 ];
 
 const allowedSendChannels = [
-  'getCategories', // 已有
-  'getMovies', // 已有
-  'updateWatchTime', // 已有
-  'loadSubtitle' // 添加，因为 App.js 调用 send('loadSubtitle')
+  'getCategories',
+  'getMovies',
+  'updateWatchTime',
+  'loadSubtitle'
 ];
 
 const allowedReceiveChannels = [
-  'categories', // 已有
-  'movies', // 已有
-  'watchTime', // 已有 (虽然现在是 invoke，但可能仍有其他地方用)
-  'error', // 已有
-  'databaseInitError', // 已有
-  'learningRecords', // 已有 (虽然现在是 invoke)
-  'subtitleLoaded' // <--- 添加这个
+  'categories',
+  'movies',
+  'watchTime',
+  'error',
+  'databaseInitError',
+  'learningRecords',
+  'subtitleLoaded',
+  'videoSelectedFromMenu'
 ];
 
 // 使用 contextBridge 暴露 API
@@ -59,30 +61,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 监听来自主进程的消息
   on: (channel, listener) => {
     if (allowedReceiveChannels.includes(channel)) {
-      // 创建一个新的包装函数，在调用原始监听器之前进行日志记录
       const wrappedListener = (event, ...args) => {
         console.log(`【Preload】收到IPC消息: ${channel}`, args);
         listener(...args);
       };
       ipcRenderer.on(channel, wrappedListener);
-      
-      // 返回一个移除监听器的函数，确保正确移除包装后的监听器
       return () => {
         ipcRenderer.removeListener(channel, wrappedListener);
       };
     } else {
       console.error(`【Preload】阻止监听未授权的 receive 通道: ${channel}`);
-      // 返回一个无操作函数，以保持API一致性
       return () => {}; 
     }
   },
   
-  // 移除特定监听器 (如果需要精确移除的话)
+  // 移除特定监听器
   removeListener: (channel, listener) => {
      if (allowedReceiveChannels.includes(channel)) {
-       // 注意：这种方式可能无法移除用 wrappedListener 包装的监听器
-       // 如果需要精确移除，需要保存原始 listener 和 wrappedListener 的映射
-       // 或者，上面 on 方法返回的函数是更可靠的移除方式
        ipcRenderer.removeListener(channel, listener);
      } else {
         console.error(`【Preload】尝试移除未授权通道的监听器: ${channel}`);
@@ -98,35 +93,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
      }
   },
   
-  // ============== 具体功能 API ============== 
+  // ============== 具体功能 API (简化) ============== 
   
-  // OCR 相关
-  performOCR: (imageData) => ipcRenderer.invoke('perform-ocr', imageData),
-  performOCRFromFrame: (videoPath, timestamp) => ipcRenderer.invoke('perform-ocr-from-frame', { videoPath, timestamp }),
+  // 不再暴露 OCR 相关 API 给渲染进程
+  // performOCR: (imageData) => ipcRenderer.invoke('perform-ocr', imageData),
+  // performOCRFromFrame: (videoPath, timestamp) => ipcRenderer.invoke('perform-ocr-from-frame', { videoPath, timestamp }),
   
-  // 帧提取 相关
+  // 帧提取 相关 (仍保留，但可能不由 OCR 使用)
   extractFrame: (videoPath, timestamp) => ipcRenderer.invoke('extract-frame', { videoPath, timestamp }),
   
   // 文件/目录 相关
-  selectVideo: () => ipcRenderer.invoke('selectVideo'),
+  selectSubtitle: (videoPath) => ipcRenderer.invoke('selectSubtitle', { videoPath }),
+  readVideo: (videoPath) => ipcRenderer.invoke('readVideo', { videoPath }),
   
   // 数据库 相关
-  getCategories: () => ipcRenderer.send('getCategories'), // 假设 getCategories 是 send/on 模式
-  getMovies: (category_id, page) => ipcRenderer.send('getMovies', { category_id, page }), // 假设 getMovies 是 send/on 模式
+  getCategories: () => ipcRenderer.send('getCategories'),
+  getMovies: (category_id, page) => ipcRenderer.send('getMovies', { category_id, page }),
   getWatchTime: (videoId) => ipcRenderer.invoke('getWatchTime', videoId),
-  updateWatchTime: (watchTimeData) => ipcRenderer.send('updateWatchTime', watchTimeData), // 假设是 send/on 模式
+  updateWatchTime: (watchTimeData) => ipcRenderer.send('updateWatchTime', watchTimeData),
   saveLearningRecord: (record) => ipcRenderer.invoke('saveLearningRecord', record),
-  getLearningRecords: (videoId) => ipcRenderer.invoke('getLearningRecords', videoId)
+  getLearningRecords: (videoId) => ipcRenderer.invoke('getLearningRecords', videoId),
   
-  // 可以继续添加其他需要的API...
+  // ... (可能还有其他 API)
 });
 
 console.log('【Preload】electronAPI 已注入到 window 对象');
-
-// 标记preload脚本已加载
 console.log('【preload】预加载脚本已执行');
 
 // 为不支持contextBridge的环境提供fallback (应该避免在生产环境中使用)
 if (process.env.NODE_ENV === 'development') {
   window.require = require;
 } 
+
+console.log('--- Preload script: END ---'); 

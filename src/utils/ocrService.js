@@ -10,7 +10,7 @@
  */
 class OCRServiceClient {
   /**
-   * 对图像执行OCR识别 (调用主进程)
+   * 对图像执行 (调用主进程)
    * @param {Buffer|ArrayBuffer|Uint8Array} imageData - 图像数据 (应为Buffer兼容类型)
    * @returns {Promise<string>} - 识别出的文本
    * @throws {Error} 如果主进程返回错误

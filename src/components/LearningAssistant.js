@@ -27,10 +27,11 @@ function TabPanel(props) {
       hidden={value !== index}
       id={`assistant-tabpanel-${index}`}
       aria-labelledby={`assistant-tab-${index}`}
+      style={{ display: value === index ? 'flex' : 'none', flexDirection: 'column', height: '100%', overflow: 'hidden' }}
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
           {children}
         </Box>
       )}
@@ -112,8 +113,13 @@ const LearningAssistant = ({
   }, [explanation, selectedText]);
   
   return (
-    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <CardContent sx={{ flex: '0 0 auto' }}>
+    <Card sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <CardContent sx={{ flex: '0 0 auto', pb: 1 }}>
         <Typography variant="h5" gutterBottom>
           学习助手
         </Typography>
@@ -121,7 +127,7 @@ const LearningAssistant = ({
       </CardContent>
       
       {/* 选项卡 */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
         <Tabs 
           value={tabValue} 
           onChange={handleTabChange} 
@@ -133,178 +139,181 @@ const LearningAssistant = ({
         </Tabs>
       </Box>
       
-      {/* 对话面板 */}
-      <TabPanel value={tabValue} index={0}>
-        <Box sx={{ height: '400px', overflow: 'auto', mb: 2 }}>
-          {chatHistory.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" align="center">
-              选择字幕文本或输入问题开始对话
-            </Typography>
-          ) : (
-            <List>
-              {chatHistory.map((message, index) => (
-                <ListItem 
-                  key={index} 
-                  alignItems="flex-start"
-                  sx={{ 
-                    backgroundColor: message.type === 'user' ? 'rgba(0, 0, 0, 0.05)' : 'transparent',
-                    borderRadius: 1,
-                    mb: 1
-                  }}
-                >
-                  <ListItemText
-                    primary={
-                      <Typography variant="subtitle2">
-                        {message.type === 'user' ? '你' : '助手'}
-                        {message.query && ` (关于: "${message.query}")`}
-                      </Typography>
-                    }
-                    secondary={
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="body2" component="span">
-                          {message.text}
+      {/* 选项卡面板容器 */}
+      <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* 对话面板 */}
+        <TabPanel value={tabValue} index={0}>
+          <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2, display: 'flex', flexDirection: 'column' }}>
+            {chatHistory.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" align="center">
+                选择字幕文本或输入问题开始对话
+              </Typography>
+            ) : (
+              <List>
+                {chatHistory.map((message, index) => (
+                  <ListItem 
+                    key={index} 
+                    alignItems="flex-start"
+                    sx={{ 
+                      backgroundColor: message.type === 'user' ? 'rgba(0, 0, 0, 0.05)' : 'transparent',
+                      borderRadius: 1,
+                      mb: 1
+                    }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle2">
+                          {message.type === 'user' ? '你' : '助手'}
+                          {message.query && ` (关于: "${message.query}")`}
                         </Typography>
-                        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleCopyText(message.text)}
-                          >
-                            <ContentCopy fontSize="small" />
-                          </IconButton>
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleToggleSaveItem(message)}
-                          >
-                            {savedItems.some(item => item.text === message.text) ? 
-                              <Bookmark fontSize="small" /> : 
-                              <BookmarkBorder fontSize="small" />
-                            }
-                          </IconButton>
+                      }
+                      secondary={
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" component="span">
+                            {message.text}
+                          </Typography>
+                          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                            <IconButton 
+                              size="small" 
+                              onClick={() => handleCopyText(message.text)}
+                            >
+                              <ContentCopy fontSize="small" />
+                            </IconButton>
+                            <IconButton 
+                              size="small"
+                              onClick={() => handleToggleSaveItem(message)}
+                            >
+                              {savedItems.some(item => item.text === message.text) ? 
+                                <Bookmark fontSize="small" /> : 
+                                <BookmarkBorder fontSize="small" />
+                              }
+                            </IconButton>
+                          </Box>
                         </Box>
-                      </Box>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Box>
-        
-        {/* 输入区域 */}
-        <Paper 
-          elevation={3} 
-          component="form" 
-          sx={{ p: 1, display: 'flex', alignItems: 'center' }}
-        >
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="问点什么..."
-            size="small"
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-          />
-          <Button 
-            variant="contained" 
-            color="primary" 
-            endIcon={<Send />}
-            onClick={handleSendMessage}
-            sx={{ ml: 1 }}
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
+          
+          {/* 输入区域 */}
+          <Paper 
+            elevation={3} 
+            component="form" 
+            sx={{ p: 1, display: 'flex', alignItems: 'center' }}
           >
-            发送
-          </Button>
-        </Paper>
-      </TabPanel>
-      
-      {/* 历史记录面板 */}
-      <TabPanel value={tabValue} index={1}>
-        <Box sx={{ height: '450px', overflow: 'auto' }}>
-          {learningRecords.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" align="center">
-              暂无学习记录
-            </Typography>
-          ) : (
-            <List>
-              {learningRecords.map((record, index) => (
-                <ListItem 
-                  key={index} 
-                  alignItems="flex-start"
-                  divider
-                >
-                  <ListItemText
-                    primary={
-                      <Typography variant="subtitle2">
-                        {new Date(record.timestamp).toLocaleString()}
-                      </Typography>
-                    }
-                    secondary={
-                      <React.Fragment>
-                        <Typography variant="body2" component="span" color="text.primary">
-                          问题: {record.subtitle_text}
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="问点什么..."
+              size="small"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+            />
+            <Button 
+              variant="contained" 
+              color="primary" 
+              endIcon={<Send />}
+              onClick={handleSendMessage}
+              sx={{ ml: 1 }}
+            >
+              发送
+            </Button>
+          </Paper>
+        </TabPanel>
+        
+        {/* 历史记录面板 */}
+        <TabPanel value={tabValue} index={1}>
+          <Box sx={{ flexGrow: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {learningRecords.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" align="center">
+                暂无学习记录
+              </Typography>
+            ) : (
+              <List>
+                {learningRecords.map((record, index) => (
+                  <ListItem 
+                    key={index} 
+                    alignItems="flex-start"
+                    divider
+                  >
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle2">
+                          {new Date(record.timestamp).toLocaleString()}
                         </Typography>
-                        <Typography variant="body2" component="div" sx={{ mt: 1 }}>
-                          解释: {record.explanation}
+                      }
+                      secondary={
+                        <React.Fragment>
+                          <Typography variant="body2" component="span" color="text.primary">
+                            问题: {record.subtitle_text}
+                          </Typography>
+                          <Typography variant="body2" component="div" sx={{ mt: 1 }}>
+                            解释: {record.explanation}
+                          </Typography>
+                        </React.Fragment>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
+        </TabPanel>
+        
+        {/* 收藏面板 */}
+        <TabPanel value={tabValue} index={2}>
+          <Box sx={{ flexGrow: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {savedItems.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" align="center">
+                暂无收藏内容
+              </Typography>
+            ) : (
+              <List>
+                {savedItems.map((item, index) => (
+                  <ListItem 
+                    key={index} 
+                    alignItems="flex-start"
+                    divider
+                  >
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle2">
+                          {item.query ? `关于: "${item.query}"` : '收藏内容'}
                         </Typography>
-                      </React.Fragment>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Box>
-      </TabPanel>
-      
-      {/* 收藏面板 */}
-      <TabPanel value={tabValue} index={2}>
-        <Box sx={{ height: '450px', overflow: 'auto' }}>
-          {savedItems.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" align="center">
-              暂无收藏内容
-            </Typography>
-          ) : (
-            <List>
-              {savedItems.map((item, index) => (
-                <ListItem 
-                  key={index} 
-                  alignItems="flex-start"
-                  divider
-                >
-                  <ListItemText
-                    primary={
-                      <Typography variant="subtitle2">
-                        {item.query ? `关于: "${item.query}"` : '收藏内容'}
-                      </Typography>
-                    }
-                    secondary={
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="body2" component="span">
-                          {item.text}
-                        </Typography>
-                        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleCopyText(item.text)}
-                          >
-                            <ContentCopy fontSize="small" />
-                          </IconButton>
-                          <IconButton 
-                            size="small"
-                            onClick={() => handleToggleSaveItem(item)}
-                          >
-                            <Bookmark fontSize="small" />
-                          </IconButton>
+                      }
+                      secondary={
+                        <Box sx={{ mt: 1 }}>
+                          <Typography variant="body2" component="span">
+                            {item.text}
+                          </Typography>
+                          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                            <IconButton 
+                              size="small" 
+                              onClick={() => handleCopyText(item.text)}
+                            >
+                              <ContentCopy fontSize="small" />
+                            </IconButton>
+                            <IconButton 
+                              size="small"
+                              onClick={() => handleToggleSaveItem(item)}
+                            >
+                              <Bookmark fontSize="small" />
+                            </IconButton>
+                          </Box>
                         </Box>
-                      </Box>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Box>
-      </TabPanel>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
+        </TabPanel>
+      </Box>
     </Card>
   );
 };

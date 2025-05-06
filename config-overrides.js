@@ -1,4 +1,4 @@
-const { override, addWebpackAlias, addWebpackResolve } = require('customize-cra');
+const { override,  addWebpackResolve } = require('customize-cra');
 const path = require('path');
 
 module.exports = override(
@@ -21,6 +21,15 @@ module.exports = override(
       "assert": false // 如果需要
     }
   }),
+
+  // 设置 webpack 输出公共路径为相对路径，避免 Electron file:// 下静态资源路径错误
+  (config) => {
+    // 在生产环境下使用相对路径，开发环境保留默认publicPath以保证dev server正常工作
+    if (process.env.NODE_ENV === 'production') {
+      config.output.publicPath = './';
+    }
+    return config;
+  },
 
   // 如果你需要别名或其他配置，可以在这里添加
   // addWebpackAlias({
