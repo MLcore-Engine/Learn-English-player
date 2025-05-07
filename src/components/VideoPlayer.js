@@ -1,35 +1,34 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 
 const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) => {
   const playerRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let canceled = false;
-    console.log('【渲染进程】VideoPlayer 组件挂载或更新，videoPath:', videoPath);
+    if (!videoPath) return;
     (async () => {
-      if (!videoPath) return;
-      console.log('【渲染进程】开始加载视频:', videoPath);
       try {
-        const buffer = await window.electronAPI.invoke('readVideo', videoPath);
-        
-        const blob = new Blob([buffer], { type: 'video/mp4' });
-        const url = URL.createObjectURL(blob);
-        console.log('【渲染进程】创建 Blob URL:', url);
-
-        // 如果已经清理（组件卸载），直接退出（React StrictMode 会触发多次 mount/unmount）
+        let videoSrcUrl = `file://${videoPath}`;
+        const currentPlatform = window.electronAPI.platform; 
+        if (currentPlatform === 'win32' && /^[a-zA-Z]:\\/.test(videoPath)) {
+          videoSrcUrl = `file:///${videoPath.replace(/\\/g, '/')}`;
+        }
+        const videoEl = videoRef.current;
+        videoEl.addEventListener('loadedmetadata', () => {
+          // 原生 video loadedmetadata 事件
+        });
+        videoEl.addEventListener('canplay', () => { /* 原生 video canplay 事件 */ });
+        videoEl.addEventListener('canplaythrough', () => { /* 原生 video canplaythrough 事件 */ });
+        videoEl.addEventListener('error', (e) => console.error('[DEBUG] 原生 video element error', videoEl.error, e));
         if (canceled) {
           return;
         }
-        // 确保 videoRef 对应元素存在
         if (!videoRef.current) {
           console.error('【渲染进程】视频元素未找到，无法初始化播放器');
           return;
         }
-
-        console.log('【渲染进程】初始化 Video.js 播放器');
-        // 使用更清晰的配置
         const options = {
           fluid: true,
           autoplay: true,
@@ -40,40 +39,27 @@ const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) =>
           responsive: true
         };
         
-        // 先尝试清理任何现有实例
         if (playerRef.current) {
-          console.log('【渲染进程】清理已存在的播放器实例');
           playerRef.current.dispose();
           playerRef.current = null;
         }
         
-        // 创建新播放器实例
+        await new Promise(resolve => requestAnimationFrame(resolve));
         const player = videojs(videoRef.current, options);
         playerRef.current = player;
         
-        // 配置源
-        player.src({ src: url, type: 'video/mp4' });
-        console.log('【渲染进程】设置播放器源:', url);
-
-        // 监听事件
+        player.src({ src: videoSrcUrl, type: 'video/mp4' });
         player.on('timeupdate', () => {
           onTimeUpdate(player.currentTime());
         });
         
-        player.on('ready', () => {
-          console.log('【渲染进程】播放器准备就绪');
-        });
-
+        player.on('ready', () => { /* 播放器准备就绪 */ });
         player.on('loadeddata', () => {
-          console.log('【渲染进程】视频数据已加载，尝试播放');
           player.play().catch(e => console.error('【渲染进程】播放失败:', e));
         });
-
         player.on('error', (e) => {
           console.error('【渲染进程】Video.js错误:', player.error(), e);
         });
-
-        // 加字幕轨道并监听选中
         const tracks = player.textTracks();
         for (let i = 0; i < tracks.length; i++) {
           const t = tracks[i];
@@ -88,19 +74,12 @@ const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) =>
       }
     })();
 
-    return () => {
+    return () => { // 组件卸载时清理
       canceled = true;
       if (playerRef.current) {
-        const srcs = playerRef.current.currentSources();
-        if (srcs[0]?.src.startsWith('blob:')) {
-          URL.revokeObjectURL(srcs[0].src);
-          console.log('【渲染进程】撤销 Blob URL:', srcs[0].src);
-        }
         playerRef.current.dispose();
         playerRef.current = null;
-        console.log('【渲染进程】销毁 Video.js 播放器');
       }
-      console.log('【渲染进程】VideoPlayer 组件卸载');
     };
   }, [videoPath, onTimeUpdate, onSubtitleSelect]);
 
@@ -119,6 +98,7 @@ const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) =>
       }}
     >
       <div 
+        key={videoPath}
         data-vjs-player 
         style={{
           width: '100%',

@@ -129,7 +129,7 @@ const handleSaveApiKey = async () => {
       <div style={{ display: 'flex', width: '100vw', height: '100vh', margin: 0, padding: 0 }}>
         <div style={{ flex: 1, backgroundColor: '#000' }}>
           {videoPath ? (
-            <VideoPlayer
+            <VideoPlayer key={videoPath}
               videoPath={videoPath}
               onTimeUpdate={handleTimeUpdate}
               onSubtitleSelect={handleSubtitleSelect}

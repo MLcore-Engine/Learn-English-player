@@ -675,7 +675,7 @@ ipcMain.on('getLearningStats', (event) => {
 
 // 获取视频观看统计数据
 ipcMain.on('getWatchingStats', (event) => {
-  console.log('【主进程】收到getWatchingStats请求');
+  // console.log('【主进程】收到getWatchingStats请求');
   
   if (!db) {
     console.error('【主进程】数据库未初始化，无法获取观看统计数据');
@@ -746,18 +746,18 @@ ipcMain.handle('extract-frame', async (event, { videoPath, timestamp }) => {
 });
 
 // 读取视频文件的 handler
-ipcMain.handle('readVideo', async (event, videoPath) => {
+// ipcMain.handle('readVideo', async (event, videoPath) => {
   
-  try {
-    // 读取完整视频文件为 Buffer
-    const data = await fs.promises.readFile(videoPath);
-    console.log('【主进程】视频文件读取成功，大小:', data.length, '字节');
-    return data; // Buffer 会被序列化
-  } catch (error) {
-    console.error('【主进程】readVideo 读取失败:', error);
-    throw error;
-  }
-});
+//   try {
+//     // 读取完整视频文件为 Buffer
+//     const data = await fs.promises.readFile(videoPath);
+//     console.log('【主进程】视频文件读取成功，大小:', data.length, '字节');
+//     return data; // Buffer 会被序列化
+//   } catch (error) {
+//     console.error('【主进程】readVideo 读取失败:', error);
+//     throw error;
+//   }
+// });
 
 // 打开视频文件函数
 async function openVideoFile() {
