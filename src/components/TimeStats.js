@@ -1,18 +1,12 @@
 import React from 'react';
-import { 
-  Box, 
-  Paper, 
-  Typography, 
-  Grid, 
-  Divider 
-} from '@mui/material';
+import { Box, Paper, Typography, Grid } from '@mui/material';
 import { 
   AccessTime, 
   AvTimer, 
   LocationSearching 
 } from '@mui/icons-material';
 
-const TimeStats = ({ totalTime, sessionTime, compact = false }) => {
+const TimeStats = ({ totalTime, sessionTime }) => {
   // 格式化时间为小时:分钟:秒
   const formatTime = (seconds) => {
     if (!seconds) return '00:00:00';
@@ -31,66 +25,30 @@ const TimeStats = ({ totalTime, sessionTime, compact = false }) => {
   // 计算距离1000小时还剩余的秒数
   const remainingSeconds = Math.max(0, 1000 * 3600 - totalTime);
 
-  // 根据compact模式调整样式
-  const padding = compact ? 1 : 2;
-  const mb = compact ? 1 : 2;
-  const labelVariant = compact ? 'subtitle2' : 'subtitle1';
-  const valueVariant = compact ? 'body1' : 'h5';
-  const iconSize = compact ? 'small' : 'default';
-  const gridSpacing = compact ? 1 : 3;
   return (
-    <Paper
-      elevation={compact ? 0 : 3}
-      sx={{
-        p: padding,
-        mb: mb,
-        bgcolor: 'background.paper'
-      }}
-    >
-      <Typography variant={compact ? 'subtitle2' : 'h6'} gutterBottom sx={{ fontSize: compact ? '0.875rem' : '1.25rem' }}>
-        观看时长统计
-      </Typography>
-      
-      <Grid container spacing={gridSpacing} sx={{ mt: 1 }}>
-        <Grid item xs={6}>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <AccessTime color="primary" fontSize={iconSize} sx={{ mr: 1 }} />
-              <Typography variant={labelVariant}>总观看时长</Typography>
-            </Box>
-            <Typography variant={valueVariant} color="primary">
-              {formatTime(totalTime)}
-            </Typography>
-          </Box>
-        </Grid>
-        
-        { !compact && <Divider orientation="vertical" flexItem /> }
-        <Grid item xs={6}>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <AvTimer color="secondary" fontSize={iconSize} sx={{ mr: 1 }} />
-              <Typography variant={labelVariant}>当日观看时长</Typography>
-            </Box>
-            <Typography variant={valueVariant} color="secondary">
-              {formatTime(sessionTime)}
-            </Typography>
-          </Box>
-        </Grid>
-        
-        { !compact && <Divider orientation="vertical" flexItem /> }
-        { !compact && (
+    <Paper elevation={0} sx={{ p: 1, mb: 1, bgcolor: 'background.paper' }}>
+      <Grid container spacing={1} sx={{ mt: 1 }}>
         <Grid item xs={4}>
           <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <LocationSearching color="info" fontSize={iconSize} sx={{ mr: 1 }} />
-              <Typography variant={labelVariant}>距离1000小时还剩</Typography>
-            </Box>
-            <Typography variant={valueVariant} color="info.main">
-              {formatTime(remainingSeconds)}
-            </Typography>
+            <AccessTime color="primary" fontSize="small" />
+            <Typography variant="caption">total time</Typography>
+            <Typography variant="body2" color="primary">{formatTime(totalTime)}</Typography>
           </Box>
         </Grid>
-        )}
+        <Grid item xs={4}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
+            <AvTimer color="secondary" fontSize="small" />
+            <Typography variant="caption">today</Typography>
+            <Typography variant="body2" color="secondary">{formatTime(sessionTime)}</Typography>
+          </Box>
+        </Grid>
+        <Grid item xs={4}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
+            <LocationSearching color="info" fontSize="small" />
+            <Typography variant="caption">remaining(1000h)</Typography>
+            <Typography variant="body2" color="info.main">{formatTime(remainingSeconds)}</Typography>
+          </Box>
+        </Grid>
       </Grid>
     </Paper>
   );

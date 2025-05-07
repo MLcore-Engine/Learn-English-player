@@ -17,7 +17,9 @@ const allowedInvokeChannels = [
   'getWatchTime',
   'saveLearningRecord',
   'getLearningRecords',
-  'readVideo'
+  'readVideo',
+  'saveApiKey',
+  'getApiKey'
 ];
 
 const allowedSendChannels = [
@@ -35,7 +37,8 @@ const allowedReceiveChannels = [
   'databaseInitError',
   'learningRecords',
   'subtitleLoaded',
-  'videoSelectedFromMenu'
+  'videoSelectedFromMenu',
+  'openApiKeySettings', 
 ];
 
 // 使用 contextBridge 暴露 API
@@ -92,7 +95,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
         console.error(`【Preload】尝试移除未授权通道的所有监听器: ${channel}`);
      }
   },
-  
+
+  saveApiKey: (apiKey) => ipcRenderer.invoke('saveApiKey', apiKey),
+  getApiKey: () => ipcRenderer.invoke('getApiKey'),
+
+    onOpenApiKeySettings: (callback) => {
+      const channel = 'openApiKeySettings';
+      if (allowedReceiveChannels.includes(channel)) {
+          const listener = (event, ...args) => callback(...args);
+          ipcRenderer.on(channel, listener);
+          return () => ipcRenderer.removeListener(channel, listener); // 返回清理函数
+      } else {
+          console.error(`[Preload] 阻止监听未授权通道: ${channel}`);
+          return () => {};
+      }
+  },
   // ============== 具体功能 API (简化) ============== 
   
   // 不再暴露 OCR 相关 API 给渲染进程

@@ -5,12 +5,96 @@ const Database = require('better-sqlite3');
 const { parseSync } = require('subtitle'); // 引入 subtitle 库
 const { extractFrame, cleanupTempFile } = require('./main/videoFrameExtractor'); // 引入主进程帧提取器
 const Store = require('electron-store'); // 引入electron-store用于保存配置
+const crypto = require('crypto');
 
 // 创建配置存储实例
 const store = new Store();
 
 // 获取上次打开目录或默认视频目录
 const lastVideoDir = store.get('lastVideoDir') || app.getPath('videos');
+
+const algorithm = 'aes-256-cbc';
+const encryptionSecret = crypto.createHash('sha256').update('lep-very-secret-key-replace-me').digest('base64').substring(0, 32);
+// IV 必须是 16 字节
+const iv = Buffer.from('lepinitialvector', 'utf8'); // 固定 IV 也是不推荐的，但简化了演示
+
+// 加密函数
+function encrypt(text) {
+  try {
+    const cipher = crypto.createCipheriv(algorithm, Buffer.from(encryptionSecret), iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+  } catch (error) {
+    console.error('加密失败:', error);
+    return null;
+  }
+}
+
+// 解密函数
+function decrypt(encryptedHex) {
+  try {
+    const decipher = crypto.createDecipheriv(algorithm, Buffer.from(encryptionSecret), iv);
+    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    console.error('解密失败:', error);
+    // 可能的原因：密钥错误、IV错误、数据损坏、或者根本就没存过
+    return null;
+  }
+}
+// --- 结束加密配置 ---
+
+ipcMain.handle('saveApiKey', (event, apiKey) => {
+  console.log('【主进程】收到 saveApiKey 请求');
+  if (!apiKey) {
+      console.log('【主进程】API Key 为空，清除存储');
+      store.delete('encryptedApiKey'); // 如果传入空值，则删除 Key
+      return { success: true, message: 'API Key 已清除' };
+  }
+  try {
+    const encryptedApiKey = encrypt(apiKey);
+    if (encryptedApiKey) {
+      store.set('encryptedApiKey', encryptedApiKey);
+      console.log('【主进程】加密后的 API Key 已保存');
+      return { success: true };
+    } else {
+      console.error('【主进程】加密 API Key 失败');
+      return { success: false, error: '加密失败' };
+    }
+  } catch (error) {
+    console.error('【主进程】保存 API Key 时出错:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 获取 API Key
+ipcMain.handle('getApiKey', (event) => {
+  console.log('【主进程】收到 getApiKey 请求');
+  try {
+    const encryptedApiKey = store.get('encryptedApiKey');
+    if (encryptedApiKey) {
+      const decryptedApiKey = decrypt(encryptedApiKey);
+      if (decryptedApiKey !== null) {
+        console.log('【主进程】成功解密并返回 API Key');
+        return { success: true, apiKey: decryptedApiKey };
+      } else {
+         console.error('【主进程】解密 API Key 失败');
+         // 如果解密失败，可能意味着密钥已更改或数据损坏，最好清除它
+         store.delete('encryptedApiKey');
+         return { success: false, error: '解密失败，Key 已被清除' };
+      }
+    } else {
+      console.log('【主进程】未找到已存储的 API Key');
+      return { success: true, apiKey: null }; // 没有存储 Key 不算错误
+    }
+  } catch (error) {
+    console.error('【主进程】获取 API Key 时出错:', error);
+    return { success: false, error: error.message };
+  }
+});
+// --- 结束 IPC 处理程序 ---
 
 // 数据存储目录（放在用户目录，避免在 asar 内创建）
 const appDataPath = app.getPath('userData');
@@ -100,6 +184,7 @@ app.whenReady().then(async () => {
     height: 800,
     minWidth: 1200,
     minHeight: 600,
+    icon: path.join(__dirname, './assets', 'icon.ico'), // 你的图标路径
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -148,16 +233,34 @@ app.whenReady().then(async () => {
     mainWindow = null;
   });
 
+  // 定义加载字幕菜单项使用的函数
+  async function loadSubtitle() {
+    if (!mainWindow) return;
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      defaultPath: store.get('lastVideoDir') || app.getPath('videos'),
+      properties: ['openFile'],
+      filters: [{ name: '字幕文件', extensions: ['srt', 'vtt', 'ass', 'ssa'] }]
+    });
+    if (canceled || filePaths.length === 0) return;
+    // 调用现有的 loadSubtitle 事件处理逻辑
+    ipcMain.emit('loadSubtitle', null, { videoPath: null, subtitlePath: filePaths[0] });
+  }
+
   // 在应用就绪后创建菜单前，添加平台判断
   const isMac = process.platform === 'darwin';
 
-  // 定义通用菜单模板
-  const menuTemplate = [
-    // macOS 下，首个菜单为应用程序菜单
+  // --- 定义最终的菜单模板 ---
+  const finalMenuTemplate = [
     ...(isMac ? [{
       label: app.name,
       submenu: [
         { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' }, // 典型的 macOS 服务菜单
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
         { type: 'separator' },
         { role: 'quit' }
       ]
@@ -169,11 +272,30 @@ app.whenReady().then(async () => {
           label: '打开视频...',
           accelerator: 'CmdOrCtrl+O',
           click: async () => {
-            await openVideoFile();
+            await openVideoFile(); // 确保 openVideoFile 函数存在并正确工作
+          }
+        },
+        {
+          label: '加载字幕', // 确保 loadSubtitle 函数存在
+          accelerator: 'CmdOrCtrl+L',
+          click: async () => {
+            await loadSubtitle(); // 你的加载字幕逻辑
           }
         },
         { type: 'separator' },
-        { role: 'quit' }
+        { // <--- 这是新的 API Key 设置菜单项
+          label: '设置 API Key...',
+          accelerator: 'CmdOrCtrl+Shift+A', // 可以给一个不同的快捷键
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              console.log('【主进程】"设置 API Key..." 菜单被点击，发送 openApiKeySettings');
+              mainWindow.webContents.send('openApiKeySettings');
+            } else {
+              console.error('【主进程】尝试发送 openApiKeySettings 时 mainWindow 不可用');
+            }
+          }
+        },
+        ...(isMac ? [] : [{ type: 'separator' } , { role: 'quit' }]) // Windows/Linux 的退出
       ]
     },
     {
@@ -224,8 +346,7 @@ app.whenReady().then(async () => {
     }
   ];
 
-  // 构建并设置应用菜单
-  const menu = Menu.buildFromTemplate(menuTemplate);
+  const menu = Menu.buildFromTemplate(finalMenuTemplate);
   Menu.setApplicationMenu(menu);
 });
 
@@ -236,21 +357,6 @@ app.on('will-quit', () => {
     console.log('数据库连接已关闭');
   }
 });
-
-// 自动查找字幕文件
-function findSubtitleFile(videoPath) {
-  const baseName = path.basename(videoPath, path.extname(videoPath));
-  const dirName = path.dirname(videoPath);
-  
-  const subtitleExts = ['.srt', '.vtt', '.ass', '.ssa'];
-  for (const ext of subtitleExts) {
-    const potentialPath = path.join(dirName, baseName + ext);
-    if (fs.existsSync(potentialPath)) {
-      return potentialPath;
-    }
-  }
-  return null;
-}
 
 // 选择视频文件
 ipcMain.handle('selectVideo', async (event) => {
@@ -270,7 +376,7 @@ ipcMain.handle('selectVideo', async (event) => {
       const videoPath = result.filePaths[0];
       store.set('lastVideoDir', path.dirname(videoPath));
       const videoName = path.basename(videoPath);
-      const subtitlePath = findSubtitleFile(videoPath);
+      const subtitlePath = null; // 不再自动查找字幕，手动加载
       return {
         success: true,
         path: videoPath,
@@ -318,49 +424,30 @@ ipcMain.handle('selectSubtitle', async (event, { videoPath }) => {
 });
 
 // 加载字幕文件
-ipcMain.on('loadSubtitle', (event, { videoPath, subtitlePath }) => {
-  console.log('【主进程】收到 loadSubtitle 请求:', { videoPath, subtitlePath });
-
-  let finalSubtitlePath = null;
-
-  // 1. 检查传入的 subtitlePath 是否有效
-  if (subtitlePath && fs.existsSync(subtitlePath)) {
-    console.log(`【主进程】使用传入的字幕路径: ${subtitlePath}`);
-    finalSubtitlePath = subtitlePath;
-  } else {
-    // 2. 如果传入路径无效或未提供，则尝试自动查找
-    console.log(`【主进程】传入字幕路径无效或未提供，尝试自动查找 for: ${videoPath}`);
-    const foundPath = findSubtitleFile(videoPath);
-    if (foundPath) {
-      console.log(`【主进程】自动查找到字幕文件: ${foundPath}`);
-      finalSubtitlePath = foundPath;
-    } else {
-      console.log('【主进程】未找到字幕文件 (自动查找失败)');
-      mainWindow.webContents.send('subtitleLoaded', {
-        success: false,
-        error: '未找到匹配的字幕文件'
-      });
-      return; // 结束处理
-    }
+ipcMain.on('loadSubtitle', (event, { subtitlePath }) => {
+  console.log('【主进程】收到 loadSubtitle 请求，手动加载字幕:', subtitlePath);
+  if (!subtitlePath || !fs.existsSync(subtitlePath)) {
+    console.log('【主进程】无效的字幕路径:', subtitlePath);
+    mainWindow.webContents.send('subtitleLoaded', {
+      success: false,
+      error: '请手动选择有效的字幕文件'
+    });
+    return;
   }
-
-  // 3. 读取并解析最终确定的字幕文件路径
-  if (finalSubtitlePath) {
-    try {
-      const subtitleContent = fs.readFileSync(finalSubtitlePath, 'utf8');
-      const parsedSubtitles = parseSync(subtitleContent);
-      console.log(`【主进程】成功解析字幕文件: ${finalSubtitlePath}, 共 ${parsedSubtitles.length} 条`);
-      mainWindow.webContents.send('subtitleLoaded', {
-        success: true,
-        subtitles: parsedSubtitles
-      });
-    } catch (error) {
-      console.error(`【主进程】解析字幕文件失败: ${finalSubtitlePath}`, error);
-      mainWindow.webContents.send('subtitleLoaded', {
-        success: false,
-        error: `解析字幕失败: ${error.message}`
-      });
-    }
+  try {
+    const subtitleContent = fs.readFileSync(subtitlePath, 'utf8');
+    const parsedSubtitles = parseSync(subtitleContent);
+    console.log(`【主进程】成功解析字幕文件: ${subtitlePath}, 共 ${parsedSubtitles.length} 条`);
+    mainWindow.webContents.send('subtitleLoaded', {
+      success: true,
+      subtitles: parsedSubtitles
+    });
+  } catch (error) {
+    console.error(`【主进程】解析字幕文件失败: ${subtitlePath}`, error);
+    mainWindow.webContents.send('subtitleLoaded', {
+      success: false,
+      error: `解析字幕失败: ${error.message}`
+    });
   }
 });
 
@@ -660,10 +747,9 @@ ipcMain.handle('extract-frame', async (event, { videoPath, timestamp }) => {
 
 // 读取视频文件的 handler
 ipcMain.handle('readVideo', async (event, videoPath) => {
-  console.log('【主进程】收到 readVideo 请求:', videoPath);
+  
   try {
     // 读取完整视频文件为 Buffer
-    console.log('【主进程】开始读取视频文件:', videoPath);
     const data = await fs.promises.readFile(videoPath);
     console.log('【主进程】视频文件读取成功，大小:', data.length, '字节');
     return data; // Buffer 会被序列化
@@ -676,7 +762,7 @@ ipcMain.handle('readVideo', async (event, videoPath) => {
 // 打开视频文件函数
 async function openVideoFile() {
   if (!mainWindow) return null;
-  console.log('【主进程】触发打开视频文件对话框');
+  
   try {
     const result = await dialog.showOpenDialog(mainWindow, {
       defaultPath: store.get('lastVideoDir') || app.getPath('videos'),
@@ -694,7 +780,7 @@ async function openVideoFile() {
       const videoName = path.basename(videoPath);
       
       if (mainWindow && !mainWindow.isDestroyed()) {
-        console.log('【主进程】通过 videoSelectedFromMenu 发送路径:', videoPath);
+        
         mainWindow.webContents.send('videoSelectedFromMenu', { 
           success: true, 
           path: videoPath, 
@@ -705,7 +791,7 @@ async function openVideoFile() {
       }
       return videoPath;
     } else {
-      console.log('【主进程】用户取消了视频文件选择');
+      
       return null;
     }
   } catch (error) {

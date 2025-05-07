@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   TextField,
   Button,
-  Divider,
   List,
   ListItem,
   ListItemText,
@@ -119,12 +117,6 @@ const LearningAssistant = ({
       flexDirection: 'column',
       overflow: 'hidden'
     }}>
-      <CardContent sx={{ flex: '0 0 auto', pb: 1 }}>
-        <Typography variant="h5" gutterBottom>
-          学习助手
-        </Typography>
-        <Divider />
-      </CardContent>
       
       {/* 选项卡 */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>

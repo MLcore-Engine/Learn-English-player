@@ -2,8 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 
-const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect }) => {
-  const videoRef = useRef(null);
+const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) => {
   const playerRef = useRef(null);
 
   useEffect(() => {
@@ -14,14 +13,18 @@ const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect }) => {
       console.log('【渲染进程】开始加载视频:', videoPath);
       try {
         const buffer = await window.electronAPI.invoke('readVideo', videoPath);
-        console.log('【渲染进程】视频数据读取成功，大小:', buffer.length, '字节');
+        
         const blob = new Blob([buffer], { type: 'video/mp4' });
         const url = URL.createObjectURL(blob);
         console.log('【渲染进程】创建 Blob URL:', url);
 
-        // 确保DOM元素已挂载
-        if (canceled || !videoRef.current) {
-          console.error('【渲染进程】视频元素未找到或组件已卸载');
+        // 如果已经清理（组件卸载），直接退出（React StrictMode 会触发多次 mount/unmount）
+        if (canceled) {
+          return;
+        }
+        // 确保 videoRef 对应元素存在
+        if (!videoRef.current) {
+          console.error('【渲染进程】视频元素未找到，无法初始化播放器');
           return;
         }
 
