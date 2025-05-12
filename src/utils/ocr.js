@@ -2,6 +2,7 @@ import { createWorker } from 'tesseract.js';
 
 /**
  * 从 video 元素中截取底部 15% 区域并进行 OCR 识别
+ * todo 未来版本考虑引入 OpenCV.js 提供图像分析算法所需的底层工具 利用二值化、灰度化、高斯模糊等算法提高识别准确率
  * @param {HTMLVideoElement} videoElement 视频元素引用
  * @returns {Promise<string>} 识别出的英文字幕文本
  */
