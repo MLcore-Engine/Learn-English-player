@@ -196,7 +196,7 @@ const handleSaveApiKey = async () => {
           
           {isModalOpen && (
             <div className="ocr-result-panel" style={{ padding: '10px', backgroundColor: '#222', color: '#fff', margin: '0 10px 10px' }}>
-              <h4 style={{ margin: '0 0 8px' }}>OCR 识别结果</h4>
+              
               <div style={{ maxHeight: 150, overflowY: 'auto', marginBottom: 8 }}>
                 {ocrResult.split('\n').map((line, idx) => <p key={idx} style={{ margin: '4px 0' }}>{line}</p>)}
               </div>

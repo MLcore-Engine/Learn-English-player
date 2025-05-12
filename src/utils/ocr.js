@@ -62,7 +62,7 @@ export async function recognizeSubtitleFromVideo(videoElement) {
   // 设置参数：使用自动（块）模式并允许识别空格，提高字幕分词准确率
   await worker.setParameters({
     tessedit_pageseg_mode: '6', // PSM 6 = 自动检测多行文本，保留空格
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?’ ', // 加入空格
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?’‘” ', // 加入空格
     ocr_engine_mode: '1' // OCM 1 = 只使用 LSTM 引擎
   });
 
