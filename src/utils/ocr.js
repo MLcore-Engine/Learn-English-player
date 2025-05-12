@@ -13,7 +13,7 @@ export async function recognizeSubtitleFromVideo(videoElement) {
 
   const width = videoElement.videoWidth;
   const height = videoElement.videoHeight;
-  const cropHeight = Math.floor(height * 0.15);
+  const cropHeight = Math.floor(height * 0.08);
 
   // 创建临时 canvas 进行截图
   const canvas = document.createElement('canvas');
@@ -33,6 +33,26 @@ export async function recognizeSubtitleFromVideo(videoElement) {
     cropHeight
   );
 
+  // --- 添加图像预处理：二值化 ---
+  const imageData = ctx.getImageData(0, 0, width, cropHeight);
+  const data = imageData.data;
+  const threshold = 200; // 阈值可以根据实际情况调整
+
+  for (let i = 0; i < data.length; i += 4) {
+    // 计算灰度值 (简单的平均法)
+    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+
+    // 二值化：如果灰度值低于阈值，设为黑色；否则设为白色
+    const color = avg < threshold ? 0 : 255;
+    data[i] = color;     // Red
+    data[i + 1] = color; // Green
+    data[i + 2] = color; // Blue
+    // Alpha (data[i + 3]) 不变
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  // -------------------------------
+
   // 转成 dataURL 供 Tesseract.js 识别
   const dataUrl = canvas.toDataURL('image/png');
 
@@ -41,7 +61,8 @@ export async function recognizeSubtitleFromVideo(videoElement) {
   // 设置参数：使用自动（块）模式并允许识别空格，提高字幕分词准确率
   await worker.setParameters({
     tessedit_pageseg_mode: '6', // PSM 6 = 自动检测多行文本，保留空格
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!? ' // 加入空格
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?’ ', // 加入空格
+    ocr_engine_mode: '1' // OCM 1 = 只使用 LSTM 引擎
   });
 
   const { data: { text } } = await worker.recognize(dataUrl);

@@ -7,18 +7,14 @@ import {
 } from '@mui/icons-material';
 
 const TimeStats = ({ totalTime, sessionTime }) => {
-  // 格式化时间为小时:分钟:秒
+  // 格式化时间为小时:分钟，精确到分钟
   const formatTime = (seconds) => {
-    if (!seconds) return '00:00:00';
-    
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
+    const totalMinutes = Math.floor((seconds || 0) / 60);
+    const hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
     return [
       hrs.toString().padStart(2, '0'),
-      mins.toString().padStart(2, '0'),
-      secs.toString().padStart(2, '0')
+      mins.toString().padStart(2, '0')
     ].join(':');
   };
   

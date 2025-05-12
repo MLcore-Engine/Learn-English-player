@@ -5,10 +5,7 @@ console.log('--- Preload script: START ---');
 
 // 引入必要模块
 const { contextBridge, ipcRenderer } = require('electron');
-// 移除未使用的 Node.js 模块导入
-// const path = require('path');
-// const fs = require('fs');
-// const os = require('os');
+
 
 // 白名单，列出允许渲染进程调用的IPC通道
 const allowedInvokeChannels = [
@@ -77,6 +74,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => {}; 
     }
   },
+
+  // onOpenApiKeySettings: (callback) => {
+  //   const channel = 'openApiKeySettings';
+  //   if (allowedReceiveChannels.includes(channel)) {
+  //       const listener = (event, ...args) => callback(...args);
+  //       ipcRenderer.on(channel, listener);
+  //       return () => ipcRenderer.removeListener(channel, listener); // 返回清理函数
+  //   } else {
+  //       console.error(`[Preload] 阻止监听未授权通道: ${channel}`);
+  //       return () => {};
+  //   }
   
   // 移除特定监听器
   removeListener: (channel, listener) => {
@@ -99,18 +107,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveApiKey: (apiKey) => ipcRenderer.invoke('saveApiKey', apiKey),
   getApiKey: () => ipcRenderer.invoke('getApiKey'),
 
-  onOpenApiKeySettings: (callback) => {
-    const channel = 'openApiKeySettings';
-    if (allowedReceiveChannels.includes(channel)) {
-        const listener = (event, ...args) => callback(...args);
-        ipcRenderer.on(channel, listener);
-        return () => ipcRenderer.removeListener(channel, listener); // 返回清理函数
-    } else {
-        console.error(`[Preload] 阻止监听未授权通道: ${channel}`);
-        return () => {};
-    }
+
     
-  },
+  
   // ============== 具体功能 API (简化) ============== 
   
   // 不再暴露 OCR 相关 API 给渲染进程
@@ -122,7 +121,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 文件/目录 相关
   selectSubtitle: (videoPath) => ipcRenderer.invoke('selectSubtitle', { videoPath }),
-  // readVideo: (videoPath) => ipcRenderer.invoke('readVideo', { videoPath }), // 不再暴露 readVideo 给渲染进程
+  
   
   // 数据库 相关
   getCategories: () => ipcRenderer.send('getCategories'),
@@ -132,12 +131,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveLearningRecord: (record) => ipcRenderer.invoke('saveLearningRecord', record),
   getLearningRecords: (videoId) => ipcRenderer.invoke('getLearningRecords', videoId),
   platform: process.platform
-  // ... (可能还有其他 API)
+  
 });
 
-// 为不支持contextBridge的环境提供fallback (应该避免在生产环境中使用)
-// if (process.env.NODE_ENV === 'development') {
-//   window.require = require;
-// } 
+
 
 console.log('--- Preload script: END ---'); 

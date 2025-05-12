@@ -288,7 +288,7 @@ app.whenReady().then(async () => {
           accelerator: 'CmdOrCtrl+Shift+A', // 可以给一个不同的快捷键
           click: () => {
             if (mainWindow && !mainWindow.isDestroyed()) {
-              console.log('【主进程】"设置 API Key..." 菜单被点击，发送 openApiKeySettings');
+              
               mainWindow.webContents.send('openApiKeySettings');
             } else {
               console.error('【主进程】尝试发送 openApiKeySettings 时 mainWindow 不可用');

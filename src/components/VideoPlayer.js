@@ -49,8 +49,14 @@ const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) =>
         playerRef.current = player;
         
         player.src({ src: videoSrcUrl, type: 'video/mp4' });
+        // 节流：仅当秒数变化时才调用 onTimeUpdate，避免高频触发
+        let lastReportedSecond = -1;
         player.on('timeupdate', () => {
-          onTimeUpdate(player.currentTime());
+          const currentSecond = Math.floor(player.currentTime());
+          if (currentSecond !== lastReportedSecond) {
+            lastReportedSecond = currentSecond;
+            onTimeUpdate(currentSecond);
+          }
         });
         
         player.on('ready', () => { /* 播放器准备就绪 */ });

@@ -12,6 +12,10 @@ function App() {
   const [videoPath, setVideoPath] = useState(null);
   const [timeStats, setTimeStats] = useState({ totalTime: 0, sessionTime: 0 });
   const videoRef = useRef(null);
+  // 存储最新的观看时长，避免闭包导致的旧值问题
+  const timeStatsRef = useRef({ totalTime: 0, sessionTime: 0 });
+  // 定时器引用，用于每分钟更新一次观看时长
+  const watchTimerRef = useRef(null);
   const [showApiKeyInput, setShowApiKeyInput] = useState(false); // 控制输入框显示
   const [apiKey, setApiKey] = useState(''); // 当前输入的 API Key
   const [storedApiKeyStatus, setStoredApiKeyStatus] = useState('正在加载...'); // 显示状态
@@ -36,13 +40,14 @@ function App() {
 
   useEffect(() => {
     if (!window.electronAPI) return;
-    const cleanup = window.electronAPI.onOpenApiKeySettings(() => {
-
-        // 先获取当前的 Key 显示（或提示）
-        fetchApiKey();
-        setShowApiKeyInput(true); // 显示输入区域
-    });
+    const channel = 'openApiKeySettings';
+    const handleOpenApiKeySettings = () => { // 原始回调
+      fetchApiKey();
+      setShowApiKeyInput(true);
+    };
+    const cleanup = window.electronAPI.on(channel, handleOpenApiKeySettings); // 使用通用的 'on' 方法
     return () => cleanup && cleanup();
+    
   }, []);
   const fetchApiKey = async () => {
     if (!window.electronAPI) return;
@@ -96,9 +101,51 @@ const handleSaveApiKey = async () => {
     if (!videoPath || !window.electronAPI) return;
     window.electronAPI.invoke('getWatchTime', { videoId: videoPath })
       .then(data => {
-        setTimeStats({ totalTime: data.totalTime || 0, sessionTime: data.sessionTime || 0 });
+        const total = data.totalTime || 0;
+        const session = data.sessionTime || 0;
+        setTimeStats({ totalTime: total, sessionTime: session });
+        // 同步 ref
+        timeStatsRef.current = { totalTime: total, sessionTime: session };
       })
       .catch(err => console.error('获取观看时长失败:', err));
+  }, [videoPath]);
+
+  // 监听视频播放/暂停事件，启动或停止每分钟更新观看时长的定时器
+  useEffect(() => {
+    if (!videoPath || !videoRef.current) return;
+    const videoEl = videoRef.current;
+    // 启动定时器，每分钟更新一次时长
+    const startTimer = () => {
+      if (watchTimerRef.current) return;
+      watchTimerRef.current = setInterval(() => {
+        const newTotal = timeStatsRef.current.totalTime + 60;
+        const newSession = timeStatsRef.current.sessionTime + 60;
+        const currentPosition = Math.floor(videoEl.currentTime);
+        // 更新到数据库
+        window.electronAPI.updateWatchTime({ videoId: videoPath, totalTime: newTotal, sessionTime: newSession, currentPosition });
+        // 更新本地 state 与 ref
+        setTimeStats({ totalTime: newTotal, sessionTime: newSession });
+        timeStatsRef.current = { totalTime: newTotal, sessionTime: newSession };
+      }, 60000);
+    };
+    // 停止定时器
+    const stopTimer = () => {
+      if (watchTimerRef.current) {
+        clearInterval(watchTimerRef.current);
+        watchTimerRef.current = null;
+      }
+    };
+    videoEl.addEventListener('play', startTimer);
+    videoEl.addEventListener('pause', stopTimer);
+    videoEl.addEventListener('ended', stopTimer);
+    // 如果已经在播放，则立即启动
+    if (!videoEl.paused) startTimer();
+    return () => {
+      stopTimer();
+      videoEl.removeEventListener('play', startTimer);
+      videoEl.removeEventListener('pause', stopTimer);
+      videoEl.removeEventListener('ended', stopTimer);
+    };
   }, [videoPath]);
 
   return (
