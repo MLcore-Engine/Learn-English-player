@@ -13,6 +13,7 @@ const allowedInvokeChannels = [
   'selectSubtitle',
   'getWatchTime',
   'saveLearningRecord',
+  'saveAiQuery',
   'getLearningRecords',
   // 'readVideo',
   'saveApiKey',
@@ -129,6 +130,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWatchTime: (videoId) => ipcRenderer.invoke('getWatchTime', videoId),
   updateWatchTime: (watchTimeData) => ipcRenderer.send('updateWatchTime', watchTimeData),
   saveLearningRecord: (record) => ipcRenderer.invoke('saveLearningRecord', record),
+  saveAiQuery: (data) => ipcRenderer.invoke('saveAiQuery', data),
   getLearningRecords: (videoId) => ipcRenderer.invoke('getLearningRecords', videoId),
   platform: process.platform
   

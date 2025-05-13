@@ -162,6 +162,15 @@ app.whenReady().then(async () => {
         created_at TEXT
       );
     `);
+    // 创建 ai_queries 表，用于存储用户的AI查询记录
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_queries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query TEXT NOT NULL,
+        explanation TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
     
     // 验证表是否成功创建
     try {
@@ -799,3 +808,17 @@ async function openVideoFile() {
     return null;
   }
 }
+
+// IPC 处理：保存 AI 查询记录
+ipcMain.handle('saveAiQuery', (event, { query, explanation, timestamp }) => {
+  console.log('【主进程】收到 saveAiQuery 请求:', { query });
+  if (!db) return { success: false, error: '数据库未初始化' };
+  try {
+    const stmt = db.prepare('INSERT INTO ai_queries (query, explanation, created_at) VALUES (?, ?, ?)');
+    const result = stmt.run(query, explanation, timestamp);
+    return { success: true, id: result.lastInsertRowid };
+  } catch (error) {
+    console.error('【主进程】保存 AI 查询失败:', error);
+    return { success: false, error: error.message };
+  }
+});

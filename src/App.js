@@ -178,6 +178,12 @@ const handleSaveApiKey = async () => {
           ...prev,
           { subtitle_text: selection, explanation: result, timestamp: Date.now() }
         ]);
+        // 保存用户查询和 AI 解释到数据库
+        window.electronAPI.saveAiQuery({
+          query: selection,
+          explanation: result,
+          timestamp: new Date().toISOString()
+        });
       })
       .catch(err => console.error('[App] AI解释失败:', err))
       .finally(() => setAssistantLoading(false));
@@ -264,6 +270,12 @@ const handleSaveApiKey = async () => {
                     ...prev,
                     { subtitle_text: text, explanation: result, timestamp: Date.now() }
                   ]);
+                  // 保存用户查询和 AI 解释到数据库
+                  window.electronAPI.saveAiQuery({
+                    query: text,
+                    explanation: result,
+                    timestamp: new Date().toISOString()
+                  });
                 })
                 .catch(err => console.error('[App] AI解释失败:', err))
                 .finally(() => setAssistantLoading(false));
