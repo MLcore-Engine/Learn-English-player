@@ -4,6 +4,7 @@ import 'video.js/dist/video-js.css';
 import LearningAssistant from './components/LearningAssistant';
 import TimeStats from './components/TimeStats';
 import SubtitleOCR from './components/SubtitleOCR';
+import aiService from './utils/aiService';
 
 function App() {
   // OCR 结果模态框显示状态及文本
@@ -19,6 +20,16 @@ function App() {
   const [showApiKeyInput, setShowApiKeyInput] = useState(false); // 控制输入框显示
   const [apiKey, setApiKey] = useState(''); // 当前输入的 API Key
   const [storedApiKeyStatus, setStoredApiKeyStatus] = useState('正在加载...'); // 显示状态
+
+  // 新增 AI 交互状态
+  // 存储用户当前选中的文本，用于发送给AI助手进行解释
+  const [assistantSelectedText, setAssistantSelectedText] = useState('');
+  // 存储AI助手返回的解释内容，显示在学习助手面板中
+  const [assistantExplanation, setAssistantExplanation] = useState('');
+  // 标记AI助手是否正在加载中，用于显示加载状态
+  const [assistantLoading, setAssistantLoading] = useState(false);
+  // 存储用户的学习记录历史，包含查询过的文本及其解释
+  const [learningRecords, setLearningRecords] = useState([]);
 
   // 使用 useCallback 创建稳定的回调，防止 VideoPlayer 不断卸载重挂载
   const handleTimeUpdate = useCallback((currentTime) => {
@@ -56,6 +67,8 @@ function App() {
         const result = await window.electronAPI.invoke('getApiKey');
         if (result.success) {
             setStoredApiKeyStatus(result.apiKey ? '已设置' : '未设置');
+            // 将获取的 API Key 设置到 aiService
+            aiService.setApiKey(result.apiKey || '');
             // 通常不在输入框直接显示获取到的 Key，仅用于状态提示
             // setApiKey(result.apiKey || '');
         } else {
@@ -148,6 +161,29 @@ const handleSaveApiKey = async () => {
     };
   }, [videoPath]);
 
+  // 处理 OCR 模态框的中/英解释
+  const handleOcrExplain = (language) => {
+    const selection = window.getSelection().toString().trim();
+    if (!selection) {
+      setIsModalOpen(false);
+      return;
+    }
+    setAssistantSelectedText(selection);
+    setAssistantLoading(true);
+    // 直接传入文本和语言选项，由 aiService 根据 language 添加对应系统提示
+    aiService.getExplanation(selection, { language })
+      .then(result => {
+        setAssistantExplanation(result);
+        setLearningRecords(prev => [
+          ...prev,
+          { subtitle_text: selection, explanation: result, timestamp: Date.now() }
+        ]);
+      })
+      .catch(err => console.error('[App] AI解释失败:', err))
+      .finally(() => setAssistantLoading(false));
+    setIsModalOpen(false);
+  };
+
   return (
     <>
 
@@ -201,6 +237,12 @@ const handleSaveApiKey = async () => {
                 {ocrResult.split('\n').map((line, idx) => <p key={idx} style={{ margin: '4px 0' }}>{line}</p>)}
               </div>
               <div style={{ textAlign: 'right' }}>
+                <button onClick={() => handleOcrExplain('zh')} style={{ color: '#fff', backgroundColor: '#555', border: 'none', padding: '4px 8px', borderRadius: 2 }}>
+                  中文解释
+                </button>
+                <button onClick={() => handleOcrExplain('en')} style={{ color: '#fff', backgroundColor: '#555', border: 'none', padding: '4px 8px', borderRadius: 2 }}>
+                  英文解释
+                </button>
                 <button onClick={() => setIsModalOpen(false)} style={{ color: '#fff', backgroundColor: '#555', border: 'none', padding: '4px 8px', borderRadius: 2 }}>
                   关闭
                 </button>
@@ -208,11 +250,24 @@ const handleSaveApiKey = async () => {
             </div>
           )}
           <LearningAssistant
-            selectedText=""
-            explanation=""
-            learningRecords={[]}
-            isLoading={false}
-            onQueryExplanation={() => {}}
+            selectedText={assistantSelectedText}
+            explanation={assistantExplanation}
+            learningRecords={learningRecords}
+            isLoading={assistantLoading}
+            onQueryExplanation={(text) => {
+              setAssistantSelectedText(text);
+              setAssistantLoading(true);
+              aiService.getExplanation(text)
+                .then(result => {
+                  setAssistantExplanation(result);
+                  setLearningRecords(prev => [
+                    ...prev,
+                    { subtitle_text: text, explanation: result, timestamp: Date.now() }
+                  ]);
+                })
+                .catch(err => console.error('[App] AI解释失败:', err))
+                .finally(() => setAssistantLoading(false));
+            }}
           />
         </div>
       </div>

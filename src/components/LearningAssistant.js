@@ -5,6 +5,7 @@ import {
   Typography,
   TextField,
   Button,
+  CircularProgress,
   List,
   ListItem,
   ListItemText,
@@ -14,6 +15,8 @@ import {
   IconButton
 } from '@mui/material';
 import { Send, ContentCopy, Bookmark, BookmarkBorder } from '@mui/icons-material';
+
+const clean = (raw) => raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
 // 选项卡内容组件
 function TabPanel(props) {
@@ -41,7 +44,8 @@ const LearningAssistant = ({
   selectedText, 
   explanation, 
   learningRecords,
-  onQueryExplanation
+  onQueryExplanation,
+  isLoading
 }) => {
   const [tabValue, setTabValue] = useState(0);
   const [userInput, setUserInput] = useState('');
@@ -161,13 +165,20 @@ const LearningAssistant = ({
                       }
                       secondary={
                         <Box sx={{ mt: 1 }}>
-                          <Typography variant="body2" component="span">
-                            {message.text}
-                          </Typography>
+                          <Typography
+                            variant="body2"
+                            component="div"
+                            sx={{ whiteSpace: 'pre-wrap' }}
+                            dangerouslySetInnerHTML={{
+                              __html: clean(message.text)
+                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br/>')
+                            }}
+                          />
                           <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
                             <IconButton 
                               size="small" 
-                              onClick={() => handleCopyText(message.text)}
+                              onClick={() => handleCopyText(clean(message.text))}
                             >
                               <ContentCopy fontSize="small" />
                             </IconButton>
@@ -175,7 +186,7 @@ const LearningAssistant = ({
                               size="small"
                               onClick={() => handleToggleSaveItem(message)}
                             >
-                              {savedItems.some(item => item.text === message.text) ? 
+                              {savedItems.some(item => item.text === clean(message.text)) ? 
                                 <Bookmark fontSize="small" /> : 
                                 <BookmarkBorder fontSize="small" />
                               }
@@ -183,6 +194,7 @@ const LearningAssistant = ({
                           </Box>
                         </Box>
                       }
+                      slotProps={{ secondary: { component: 'div' } }}
                     />
                   </ListItem>
                 ))}
@@ -204,15 +216,17 @@ const LearningAssistant = ({
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               onKeyPress={handleKeyPress}
+              disabled={isLoading}
             />
             <Button 
               variant="contained" 
               color="primary" 
-              endIcon={<Send />}
+              disabled={isLoading}
               onClick={handleSendMessage}
+              endIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <Send />}
               sx={{ ml: 1 }}
             >
-              发送
+              {isLoading ? '生成中...' : '发送'}
             </Button>
           </Paper>
         </TabPanel>
@@ -243,11 +257,19 @@ const LearningAssistant = ({
                           <Typography variant="body2" component="span" color="text.primary">
                             问题: {record.subtitle_text}
                           </Typography>
-                          <Typography variant="body2" component="div" sx={{ mt: 1 }}>
-                            解释: {record.explanation}
-                          </Typography>
+                          <Typography
+                            variant="body2"
+                            component="div"
+                            sx={{ mt: 1, whiteSpace: 'pre-wrap' }}
+                            dangerouslySetInnerHTML={{
+                              __html: clean(record.explanation)
+                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br/>')
+                            }}
+                          />
                         </React.Fragment>
                       }
+                      slotProps={{ secondary: { component: 'div' } }}
                     />
                   </ListItem>
                 ))}
@@ -279,13 +301,20 @@ const LearningAssistant = ({
                       }
                       secondary={
                         <Box sx={{ mt: 1 }}>
-                          <Typography variant="body2" component="span">
-                            {item.text}
-                          </Typography>
+                          <Typography
+                            variant="body2"
+                            component="div"
+                            sx={{ whiteSpace: 'pre-wrap' }}
+                            dangerouslySetInnerHTML={{
+                              __html: clean(item.text)
+                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br/>')
+                            }}
+                          />
                           <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
                             <IconButton 
                               size="small" 
-                              onClick={() => handleCopyText(item.text)}
+                              onClick={() => handleCopyText(clean(item.text))}
                             >
                               <ContentCopy fontSize="small" />
                             </IconButton>
@@ -298,6 +327,7 @@ const LearningAssistant = ({
                           </Box>
                         </Box>
                       }
+                      slotProps={{ secondary: { component: 'div' } }}
                     />
                   </ListItem>
                 ))}

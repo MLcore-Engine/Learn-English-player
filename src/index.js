@@ -16,9 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 创建React根并渲染应用
   const root = ReactDOM.createRoot(rootElement);
   root.render(
-    <React.StrictMode>
+    // <React.StrictMode>
       <App />
-    </React.StrictMode>
+    // </React.StrictMode>
   );
   
   // 添加调试信息
