@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { recognizeSubtitleFromVideo } from '../utils/ocr';
 
 /**
- * SubtitleOCR 组件
- * Props:
- *   - videoRef: 传入视频元素的 React ref
- *   - onRecognize: 回调函数，用于传递识别结果
+ * 字幕OCR组件
+ * 提供字幕识别功能
  */
-const SubtitleOCR = ({ videoRef, onRecognize }) => {
-  const [loading, setLoading] = useState(false);
+const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoading }) => {
+  // 如果外部没有提供loading状态，使用内部的
+  const [internalLoading, setInternalLoading] = useState(false);
+  const loading = externalLoading !== undefined ? externalLoading : internalLoading;
 
   const handleRecognize = async () => {
     console.log('SubtitleOCR handleRecognize invoked, videoRef.current:', videoRef.current);
@@ -16,12 +16,18 @@ const SubtitleOCR = ({ videoRef, onRecognize }) => {
     if (videoRef.current) {
       videoRef.current.pause();
     }
+    
     onRecognize && onRecognize('识别中...');
+    
     if (!videoRef?.current) {
       console.warn('SubtitleOCR: videoRef.current is null，无法进行OCR识别');
       return;
     }
-    setLoading(true);
+    
+    if (externalLoading === undefined) {
+      setInternalLoading(true);
+    }
+    
     try {
       const result = (await recognizeSubtitleFromVideo(videoRef.current)).trim();
       // 处理未识别到文本的情况
@@ -34,7 +40,9 @@ const SubtitleOCR = ({ videoRef, onRecognize }) => {
       console.error('OCR 识别失败', err);
       onRecognize && onRecognize('识别失败，请重试');
     } finally {
-      setLoading(false);
+      if (externalLoading === undefined) {
+        setInternalLoading(false);
+      }
     }
   };
 
@@ -45,6 +53,11 @@ const SubtitleOCR = ({ videoRef, onRecognize }) => {
       </button>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // 只有在关键props变化时才重新渲染
+  return prevProps.videoRef === nextProps.videoRef &&
+         prevProps.isLoading === nextProps.isLoading;
+  // 不比较onRecognize，它应该是一个稳定的回调函数
+});
 
 export default SubtitleOCR; 

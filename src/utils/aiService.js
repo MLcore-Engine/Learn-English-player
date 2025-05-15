@@ -4,7 +4,7 @@ import axios from 'axios';
 const defaultConfig = {
   apiKey: process.env.REACT_APP_AI_API_KEY || '',
   apiUrl: process.env.REACT_APP_AI_API_URL || 'http://58.211.207.202:20000/api/chat',
-  model: process.env.REACT_APP_AI_MODEL || 'qwen3:32b'
+  model: process.env.REACT_APP_AI_MODEL || 'gemma3:27b'
 };
 
 // 新增系统提示

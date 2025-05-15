@@ -6,9 +6,13 @@ import {
   LocationSearching 
 } from '@mui/icons-material';
 
-const TimeStats = ({ totalTime, sessionTime }) => {
-  // 格式化时间为小时:分钟，精确到分钟
-  const formatTime = (seconds) => {
+/**
+ * 时间统计组件
+ * 显示总时长、当前会话时长和剩余时间
+ */
+const TimeStats = React.memo(({ totalTime, sessionTime, remainingSeconds, formatTime: externalFormatTime }) => {
+  // 如果外部没有提供格式化函数，使用内部的
+  const formatTime = externalFormatTime || ((seconds) => {
     const totalMinutes = Math.floor((seconds || 0) / 60);
     const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
@@ -16,10 +20,11 @@ const TimeStats = ({ totalTime, sessionTime }) => {
       hrs.toString().padStart(2, '0'),
       mins.toString().padStart(2, '0')
     ].join(':');
-  };
+  });
   
-  // 计算距离1000小时还剩余的秒数
-  const remainingSeconds = Math.max(0, 1000 * 3600 - totalTime);
+  // 计算距离1000小时还剩余的秒数（如果没有提供）
+  const remaining = remainingSeconds !== undefined ? 
+    remainingSeconds : Math.max(0, 1000 * 3600 - totalTime);
 
   return (
     <Paper elevation={0} sx={{ p: 1, mb: 1, bgcolor: 'background.paper' }}>
@@ -42,12 +47,18 @@ const TimeStats = ({ totalTime, sessionTime }) => {
           <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
             <LocationSearching color="info" fontSize="small" />
             <Typography variant="caption">remaining(1000h)</Typography>
-            <Typography variant="body2" color="info.main">{formatTime(remainingSeconds)}</Typography>
+            <Typography variant="body2" color="info.main">{formatTime(remaining)}</Typography>
           </Box>
         </Grid>
       </Grid>
     </Paper>
   );
-};
+}, (prevProps, nextProps) => {
+  // 只有在时间值变化时才重新渲染
+  return prevProps.totalTime === nextProps.totalTime && 
+         prevProps.sessionTime === nextProps.sessionTime &&
+         prevProps.remainingSeconds === nextProps.remainingSeconds;
+  // 格式化函数通常是稳定的回调，不需要比较
+});
 
 export default TimeStats; 

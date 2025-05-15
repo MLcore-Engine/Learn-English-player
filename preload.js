@@ -11,6 +11,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const allowedInvokeChannels = [
   'extract-frame',
   'selectSubtitle',
+  'selectVideo',
   'getWatchTime',
   'saveLearningRecord',
   'saveAiQuery',
@@ -62,11 +63,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 监听来自主进程的消息
   on: (channel, listener) => {
     if (allowedReceiveChannels.includes(channel)) {
+      // 使用唯一的包装函数来避免重复注册问题
       const wrappedListener = (event, ...args) => {
         console.log(`【Preload】收到IPC消息: ${channel}`, args);
         listener(...args);
       };
+      
+      // 存储包装函数的引用，以便后续可以移除
       ipcRenderer.on(channel, wrappedListener);
+      
+      // 返回清理函数
       return () => {
         ipcRenderer.removeListener(channel, wrappedListener);
       };
@@ -75,17 +81,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => {}; 
     }
   },
-
-  // onOpenApiKeySettings: (callback) => {
-  //   const channel = 'openApiKeySettings';
-  //   if (allowedReceiveChannels.includes(channel)) {
-  //       const listener = (event, ...args) => callback(...args);
-  //       ipcRenderer.on(channel, listener);
-  //       return () => ipcRenderer.removeListener(channel, listener); // 返回清理函数
-  //   } else {
-  //       console.error(`[Preload] 阻止监听未授权通道: ${channel}`);
-  //       return () => {};
-  //   }
   
   // 移除特定监听器
   removeListener: (channel, listener) => {
@@ -105,26 +100,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
      }
   },
 
+  // API Key相关
   saveApiKey: (apiKey) => ipcRenderer.invoke('saveApiKey', apiKey),
   getApiKey: () => ipcRenderer.invoke('getApiKey'),
-
-
-    
   
   // ============== 具体功能 API (简化) ============== 
   
-  // 不再暴露 OCR 相关 API 给渲染进程
-  // performOCR: (imageData) => ipcRenderer.invoke('perform-ocr', imageData),
-  // performOCRFromFrame: (videoPath, timestamp) => ipcRenderer.invoke('perform-ocr-from-frame', { videoPath, timestamp }),
-  
-  // 帧提取 相关 (仍保留，但可能不由 OCR 使用)
+  // 帧提取相关
   extractFrame: (videoPath, timestamp) => ipcRenderer.invoke('extract-frame', { videoPath, timestamp }),
   
-  // 文件/目录 相关
+  // 文件/目录相关
+  selectVideo: () => ipcRenderer.invoke('selectVideo'),
   selectSubtitle: (videoPath) => ipcRenderer.invoke('selectSubtitle', { videoPath }),
   
-  
-  // 数据库 相关
+  // 数据库相关
   getCategories: () => ipcRenderer.send('getCategories'),
   getMovies: (category_id, page) => ipcRenderer.send('getMovies', { category_id, page }),
   getWatchTime: (videoId) => ipcRenderer.invoke('getWatchTime', videoId),
@@ -132,10 +121,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveLearningRecord: (record) => ipcRenderer.invoke('saveLearningRecord', record),
   saveAiQuery: (data) => ipcRenderer.invoke('saveAiQuery', data),
   getLearningRecords: (videoId) => ipcRenderer.invoke('getLearningRecords', videoId),
-  platform: process.platform
   
+  // 系统信息
+  platform: process.platform
 });
-
-
 
 console.log('--- Preload script: END ---'); 

@@ -40,7 +40,11 @@ function TabPanel(props) {
   );
 }
 
-const LearningAssistant = ({ 
+/**
+ * 学习助手组件
+ * 显示AI解释内容和学习记录
+ */
+const LearningAssistant = React.memo(({ 
   selectedText, 
   explanation, 
   learningRecords,
@@ -112,7 +116,7 @@ const LearningAssistant = ({
         ]);
       }
     }
-  }, [explanation, selectedText]);
+  }, [explanation, selectedText, chatHistory]);
   
   return (
     <Card sx={{ 
@@ -338,6 +342,13 @@ const LearningAssistant = ({
       </Box>
     </Card>
   );
-};
+}, (prevProps, nextProps) => {
+  // 只有当关键props变化时才重新渲染
+  return prevProps.selectedText === nextProps.selectedText &&
+         prevProps.explanation === nextProps.explanation &&
+         prevProps.isLoading === nextProps.isLoading &&
+         prevProps.learningRecords === nextProps.learningRecords;
+  // 注意：不比较onQueryExplanation，因为它应该是一个稳定的回调函数
+});
 
 export default LearningAssistant; 

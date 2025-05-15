@@ -2,7 +2,11 @@ import React, { useLayoutEffect, useRef } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 
-const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) => {
+/**
+ * 视频播放器组件
+ * 负责视频的播放和控制
+ */
+const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) => {
   const playerRef = useRef(null);
 
   useLayoutEffect(() => {
@@ -87,7 +91,7 @@ const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) =>
         playerRef.current = null;
       }
     };
-  }, [videoPath, onTimeUpdate, onSubtitleSelect]);
+  }, [videoPath, onTimeUpdate, onSubtitleSelect, videoRef]);
 
   return (
     <div 
@@ -132,6 +136,11 @@ const VideoPlayer = ({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) =>
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // 自定义比较函数，只有关键props变化时才重新渲染
+  return prevProps.videoPath === nextProps.videoPath &&
+         prevProps.videoRef === nextProps.videoRef;
+  // 注意：我们不比较onTimeUpdate和onSubtitleSelect，因为它们是稳定的回调函数
+});
 
 export default VideoPlayer;
