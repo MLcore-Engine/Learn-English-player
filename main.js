@@ -6,6 +6,8 @@ const { parseSync } = require('subtitle'); // 引入 subtitle 库
 const { extractFrame, cleanupTempFile } = require('./main/videoFrameExtractor'); // 引入主进程帧提取器
 const Store = require('electron-store'); // 引入electron-store用于保存配置
 const crypto = require('crypto');
+const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 
 // 创建配置存储实例
 const store = new Store();
@@ -114,6 +116,14 @@ console.log('应用路径信息:', {
   DB_PATH,
   lastVideoDir
 });
+
+// 配置日志
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
+
+// 配置自动更新
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
 
 // 应用启动时创建窗口
 app.whenReady().then(async () => {
@@ -357,6 +367,11 @@ app.whenReady().then(async () => {
 
   const menu = Menu.buildFromTemplate(finalMenuTemplate);
   Menu.setApplicationMenu(menu);
+
+  // 检查更新(仅在生产环境)
+  if (!process.env.DEV_SERVER_URL) {
+    autoUpdater.checkForUpdatesAndNotify();
+  }
 });
 
 app.on('will-quit', () => {
@@ -821,4 +836,18 @@ ipcMain.handle('saveAiQuery', (event, { query, explanation, timestamp }) => {
     console.error('【主进程】保存 AI 查询失败:', error);
     return { success: false, error: error.message };
   }
+});
+
+// 监听更新事件
+autoUpdater.on('update-available', () => {
+  mainWindow.webContents.send('update-available');
+});
+
+autoUpdater.on('update-downloaded', () => {
+  mainWindow.webContents.send('update-downloaded');
+});
+
+// 添加IPC处理器让渲染进程可以触发安装更新
+ipcMain.handle('install-update', () => {
+  autoUpdater.quitAndInstall();
 });

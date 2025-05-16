@@ -4,8 +4,24 @@ const { app } = require('electron'); // 需要 app 来获取路径
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 
-// 设置 fluent-ffmpeg 使用安装的 ffmpeg
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+// 根据平台选择合适的ffmpeg路径
+let ffmpegPath;
+if (process.env.DEV_SERVER_URL) {
+  // 开发环境使用安装的ffmpeg
+  ffmpegPath = ffmpegInstaller.path;
+} else {
+  // 生产环境使用打包的ffmpeg
+  if (process.platform === 'darwin') {
+    ffmpegPath = path.join(process.resourcesPath, 'bin', 'ffmpeg');
+  } else if (process.platform === 'win32') {
+    ffmpegPath = path.join(process.resourcesPath, 'bin', 'ffmpeg.exe');
+  } else {
+    ffmpegPath = path.join(process.resourcesPath, 'bin', 'ffmpeg');
+  }
+}
+
+// 设置ffmpeg路径
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 // 临时文件存储路径 (使用 userData 目录更可靠)
 const tempDir = path.join(app.getPath('userData'), 'tempFrames');

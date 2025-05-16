@@ -1,5 +1,13 @@
 import axios from 'axios';
 
+// 创建 axios 实例
+const axiosInstance = axios.create({
+  timeout: 30000, // 30秒超时
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 // 默认AI服务配置 
 const defaultConfig = {
   apiKey: process.env.REACT_APP_AI_API_KEY || '',
@@ -16,7 +24,7 @@ If I give you a word, then please follow this format when you respond:
 
    - 例如: 
      
-     “nucleus”  /ˈnukliəs/   n.  “原子核”“核心” 
+     "nucleus"  /ˈnukliəs/   n.  "原子核""核心" 
      
 
 2. 一个简单的英文例句和相应的中文翻译。
@@ -30,14 +38,14 @@ If I give you a word, then please follow this format when you respond:
 
    - 例如:
      
-     它的常见同义词有 “core”“kernel” 等。
+     它的常见同义词有 "core""kernel" 等。
      
 
 4. 扩展的文化、语言或学术背景知识，帮助我理解该单词在美式英语中的地位或常见用法。
 
    - 例如:
      
-     在科学领域尤其是物理学和化学中，“nucleus” 是非常重要的概念。在日常英语中，也会用 “the nucleus of a group” 等来表示一个群体的核心部分。
+     在科学领域尤其是物理学和化学中，"nucleus" 是非常重要的概念。在日常英语中，也会用 "the nucleus of a group" 等来表示一个群体的核心部分。
      
 
 请务必使用 **KK 音标**（Kenyon & Knott），并确保与标准美式英语一致。不要使用 IPA 或其他音标格式。
@@ -147,16 +155,20 @@ class AIService {
       };
       
       // 发送请求
-      const response = await axios.post(
+      const response = await axiosInstance.post(
         this.config.apiUrl,
         requestData,
         {
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.config.apiKey}`
           }
         }
       );
+      
+      // 检查响应状态
+      if (!response.data) {
+        throw new Error('服务器返回空响应');
+      }
       
       // 提取回复内容，兼容不同返回格式
       const data = response.data;
@@ -165,6 +177,8 @@ class AIService {
         result = data.message.content;
       } else if (data.choices && data.choices[0] && data.choices[0].message) {
         result = data.choices[0].message.content;
+      } else {
+        throw new Error('无法解析服务器响应');
       }
       
       // 将助手回复添加到上下文
@@ -173,7 +187,16 @@ class AIService {
       return result;
     } catch (error) {
       console.error('AI服务请求失败:', error);
-      throw new Error(`请求AI解释失败: ${error.message}`);
+      if (error.response) {
+        // 服务器返回错误状态码
+        throw new Error(`服务器错误: ${error.response.status} - ${error.response.data?.message || '未知错误'}`);
+      } else if (error.request) {
+        // 请求发送失败
+        throw new Error('无法连接到服务器，请检查网络连接');
+      } else {
+        // 其他错误
+        throw new Error(`请求失败: ${error.message}`);
+      }
     }
   }
   
