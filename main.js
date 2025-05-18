@@ -136,7 +136,7 @@ app.whenReady().then(async () => {
   // 初始化数据库连接，添加错误处理
   try {
     db = new Database(DB_PATH);
-    // 创建表
+    // 创建global_usage表，记录全局使用时间
     console.log('创建global_usage表');
     db.exec(`
       CREATE TABLE IF NOT EXISTS global_usage (
@@ -196,6 +196,16 @@ app.whenReady().then(async () => {
       mainWindow.webContents.send('databaseInitError', { error: error.message, dbPath: DB_PATH });
     }
   }
+  let iconPath;
+
+  if (process.platform === 'win32') {
+    iconPath = path.join(__dirname, 'assets', 'icon.ico');
+  } else if (process.platform === 'linux') {
+    iconPath = path.join(__dirname, 'assets', 'icon.png');
+  } else {
+    // macOS 通常不需要在 BrowserWindow 中设置图标（使用 .icns + Info.plist）
+    iconPath = undefined;
+  }
   
   // Create the main window
   mainWindow = new BrowserWindow({
@@ -203,7 +213,7 @@ app.whenReady().then(async () => {
     height: 800,
     minWidth: 1200,
     minHeight: 600,
-    icon: path.join(__dirname, './assets', 'icon.ico'), // 你的图标路径
+    icon: iconPath, // 你的图标路径
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -233,7 +243,7 @@ app.whenReady().then(async () => {
     .catch(err => {
       console.error(`加载URL失败: ${startUrl}`, err); // 保留
     });
-  
+
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('页面加载完成 (did-finish-load)');
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -252,6 +262,47 @@ app.whenReady().then(async () => {
     mainWindow = null;
   });
 
+
+  // 打开视频文件函数
+  async function openVideoFile() {
+    if (!mainWindow) return null;
+    
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        defaultPath: store.get('lastVideoDir') || app.getPath('videos'),
+        properties: ['openFile'],
+        filters: [
+          { name: '视频文件', extensions: ['mp4', 'mkv', 'avi', 'mov'] }
+        ]
+      });
+      
+      console.log('【主进程】文件选择结果:', result);
+      
+      if (!result.canceled && result.filePaths.length > 0) {
+        const videoPath = result.filePaths[0];
+        store.set('lastVideoDir', path.dirname(videoPath));
+        const videoName = path.basename(videoPath);
+        
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          
+          mainWindow.webContents.send('videoSelectedFromMenu', { 
+            success: true, 
+            path: videoPath, 
+            name: videoName 
+          });
+        } else {
+          console.warn('【主进程】尝试发送 videoSelectedFromMenu 时 mainWindow 不可用');
+        }
+        return videoPath;
+      } else {
+        
+        return null;
+      }
+    } catch (error) {
+      console.error('【主进程】文件选择对话框出错:', error);
+      return null;
+    }
+  }
   // 定义加载字幕菜单项使用的函数
   async function loadSubtitle() {
     if (!mainWindow) return;
@@ -285,7 +336,7 @@ app.whenReady().then(async () => {
       ]
     }] : []),
     {
-      label: '文件',
+      label: '文件', 
       submenu: [
         {
           label: '打开视频...',
@@ -358,7 +409,7 @@ app.whenReady().then(async () => {
           label: 'Learn More',
           click: async () => {
             const { shell } = require('electron');
-            await shell.openExternal('https://electronjs.org');
+            await shell.openExternal('https://mlcore-engine.uk');
           }
         }
       ]
@@ -783,46 +834,6 @@ ipcMain.handle('extract-frame', async (event, { videoPath, timestamp }) => {
 //   }
 // });
 
-// 打开视频文件函数
-async function openVideoFile() {
-  if (!mainWindow) return null;
-  
-  try {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      defaultPath: store.get('lastVideoDir') || app.getPath('videos'),
-      properties: ['openFile'],
-      filters: [
-        { name: '视频文件', extensions: ['mp4', 'mkv', 'avi', 'mov'] }
-      ]
-    });
-    
-    console.log('【主进程】文件选择结果:', result);
-    
-    if (!result.canceled && result.filePaths.length > 0) {
-      const videoPath = result.filePaths[0];
-      store.set('lastVideoDir', path.dirname(videoPath));
-      const videoName = path.basename(videoPath);
-      
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        
-        mainWindow.webContents.send('videoSelectedFromMenu', { 
-          success: true, 
-          path: videoPath, 
-          name: videoName 
-        });
-      } else {
-        console.warn('【主进程】尝试发送 videoSelectedFromMenu 时 mainWindow 不可用');
-      }
-      return videoPath;
-    } else {
-      
-      return null;
-    }
-  } catch (error) {
-    console.error('【主进程】文件选择对话框出错:', error);
-    return null;
-  }
-}
 
 // IPC 处理：保存 AI 查询记录
 ipcMain.handle('saveAiQuery', (event, { query, explanation, timestamp }) => {

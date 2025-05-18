@@ -22,8 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   
   // 添加调试信息
-  console.log('React应用已挂载到DOM', { 
-    rootElement, 
+  console.log('React应用已挂载到DOM', {
+    rootElement,
     clientHeight: rootElement.clientHeight,
     clientWidth: rootElement.clientWidth
   });
