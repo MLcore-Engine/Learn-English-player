@@ -1,0 +1,136 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 视频学习播放器状态管理架构
+
+## 状态管理流程
+
+### 1. Reducer 定义
+所有状态修改逻辑集中在 `src/reducers/index.js` 中定义，包括：
+- `videoReducer`: 处理视频播放相关状态
+- `timeStatsReducer`: 处理时间统计相关状态
+- `aiReducer`: 处理AI助手相关状态
+- `ocrReducer`: 处理OCR识别相关状态
+- `apiKeyReducer`: 处理API密钥相关状态
+
+### 2. Context Provider
+在 `src/contexts` 目录中，每个功能模块都有对应的 Provider：
+- `AppContext.js`: 提供全局应用状态
+- `VideoContext.js`: 提供视频播放状态
+- `TimeStatsContext.js`: 提供时间统计状态
+- `AiContext.js`: 提供AI助手状态
+- `OcrContext.js`: 提供OCR识别状态
+- `ApiKeyContext.js`: 提供API密钥状态
+
+### 3. Custom Hooks
+在 `src/hooks` 目录中，每个功能模块都有对应的 Hook：
+- `useVideo.js`: 访问视频播放状态
+- `useTimeStats.js`: 访问时间统计状态
+- `useAi.js`: 访问AI助手状态
+- `useOcr.js`: 访问OCR识别状态
+- `useApiKey.js`: 访问API密钥状态
+
+### 4. UI 组件
+在 `src/components` 目录中，每个功能模块都有对应的组件：
+- `VideoPlayer.js`: 视频播放组件
+- `TimeStats.js`: 时间统计组件
+- `AiAssistant.js`: AI助手组件
+- `OcrScanner.js`: OCR识别组件
+- `ApiKeySettings.js`: API密钥设置组件
+
+## 状态管理最佳实践
+
+1. **状态修改**
+   - 所有状态修改必须通过 reducer 进行
+   - 使用 action 对象描述状态修改意图
+   - 保持 reducer 函数纯函数特性
+
+2. **状态访问**
+   - 使用 Custom Hook 访问状态
+   - 避免直接使用 Context
+   - 在 Hook 中处理错误情况
+
+3. **组件设计**
+   - 组件只负责渲染和用户交互
+   - 通过 props 接收状态和回调函数
+   - 保持组件的纯展示特性
+
+4. **性能优化**
+   - 合理使用 useMemo 和 useCallback
+   - 避免不必要的重渲染
+   - 使用 React.memo 优化组件
+
+## 示例代码
+
+### Reducer 示例
+```javascript
+export const apiKeyReducer = (state, action) => {
+  switch (action.type) {
+    case 'SET_API_KEY':
+      return { ...state, apiKey: action.payload };
+    case 'SET_SHOW_INPUT':
+      return { ...state, showInput: action.payload };
+    case 'SET_STATUS':
+      return { ...state, status: action.payload };
+    default:
+      return state;
+  }
+};
+```
+
+### Provider 示例
+```javascript
+export const ApiKeyProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(apiKeyReducer, {
+    apiKey: '',
+    showInput: false,
+    status: '正在加载...'
+  });
+
+  const actions = {
+    setApiKey: (apiKey) => dispatch({ type: 'SET_API_KEY', payload: apiKey }),
+    setShowInput: (show) => dispatch({ type: 'SET_SHOW_INPUT', payload: show }),
+    setStatus: (status) => dispatch({ type: 'SET_STATUS', payload: status })
+  };
+
+  return (
+    <ApiKeyContext.Provider value={{ ...state, ...actions }}>
+      {children}
+    </ApiKeyContext.Provider>
+  );
+};
+```
+
+### Custom Hook 示例
+```javascript
+export const useApiKey = () => {
+  const context = useContext(ApiKeyContext);
+  if (!context) {
+    throw new Error('useApiKey must be used within ApiKeyProvider');
+  }
+  return context;
+};
+```
+
+### UI 组件示例
+```javascript
+const ApiKeySettings = ({ isVisible, apiKey, storedApiKeyStatus, onApiKeyChange, onSave, onCancel }) => {
+  if (!isVisible) return null;
+  
+  return (
+    <div>
+      <h4>设置大模型 API Key</h4>
+      <input
+        type="password"
+        value={apiKey}
+        onChange={(e) => onApiKeyChange(e.target.value)}
+        placeholder="输入新的 API Key"
+      />
+      <button onClick={onSave}>保存</button>
+      <button onClick={onCancel}>取消</button>
+    </div>
+  );
+};
+```

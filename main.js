@@ -42,7 +42,6 @@ function decrypt(encryptedHex) {
     return decrypted;
   } catch (error) {
     console.error('解密失败:', error);
-    // 可能的原因：密钥错误、IV错误、数据损坏、或者根本就没存过
     return null;
   }
 }
