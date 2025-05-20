@@ -6,6 +6,7 @@ import SidePanel from './components/SidePanel';
 import ApiKeySettings from './components/ApiKeySettings';
 import { useApiKey } from './hooks/useApiKey';
 import { useElectronIPC } from './hooks/useElectronIPC';
+import ErrorBoundary from './components/ErrorBoundary';
 
 /**
  * 应用主容器组件
@@ -69,9 +70,11 @@ function App() {
   }, []);
 
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
 
