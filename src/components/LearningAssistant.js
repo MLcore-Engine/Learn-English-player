@@ -11,9 +11,10 @@ import {
   ListItemText,
   Tab,
   Tabs,
-  IconButton
+  IconButton,
+  Stack
 } from '@mui/material';
-import { Send, ContentCopy } from '@mui/icons-material';
+import { Send, ContentCopy, History, Summarize } from '@mui/icons-material';
 
 const clean = (raw) => raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
@@ -52,6 +53,7 @@ const LearningAssistant = React.memo(({
   const [tabValue, setTabValue] = useState(0);
   const [userInput, setUserInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
   
   // 处理选项卡切换
   const handleTabChange = (event, newValue) => {
@@ -85,17 +87,17 @@ const LearningAssistant = React.memo(({
   const handleCopyText = (text) => {
     navigator.clipboard.writeText(text);
   };
-  
-  // 保存/取消保存项目
-  // const handleToggleSaveItem = (item) => {
-  //   const itemExists = savedItems.some(saved => saved.text === item.text);
-    
-  //   if (itemExists) {
-  //     setSavedItems(savedItems.filter(saved => saved.text !== item.text));
-  //   } else {
-  //     setSavedItems([...savedItems, item]);
-  //   }
-  // };
+
+  // 切换历史记录显示
+  const handleToggleHistory = () => {
+    setShowHistory(!showHistory);
+  };
+
+  // 处理今日总结
+  const handleSummarize = () => {
+    // TODO: 实现今日总结功能
+    console.log('生成今日总结');
+  };
   
   // 当收到新的解释时，添加到聊天历史
   React.useEffect(() => {
@@ -122,28 +124,41 @@ const LearningAssistant = React.memo(({
       flexDirection: 'column',
       overflow: 'hidden'
     }}>
-      
-      {/* 选项卡 */}
-      {/* <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
-        <Tabs 
-          value={tabValue} 
-          onChange={handleTabChange} 
-          variant="fullWidth"
-        >
-          <Tab label="对话" />
-        </Tabs>
-      </Box> */}
-      
       {/* 选项卡面板容器 */}
       <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {/* 对话面板 */}
         <TabPanel value={tabValue} index={0}>
           <Box sx={{ flexGrow: 1, overflow: 'auto', mb: 2, display: 'flex', flexDirection: 'column' }}>
-            {chatHistory.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" align="center">
-                选择字幕文本或输入问题开始对话
-              </Typography>
+            {!showHistory ? (
+              // 当前对话显示
+              explanation ? (
+                <Box sx={{ p: 2 }}>
+                  <Typography
+                    variant="body2"
+                    component="div"
+                    sx={{ whiteSpace: 'pre-wrap' }}
+                    dangerouslySetInnerHTML={{
+                      __html: clean(explanation)
+                        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br/>')
+                    }}
+                  />
+                  <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => handleCopyText(clean(explanation))}
+                    >
+                      <ContentCopy fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary" align="center">
+                  选择字幕文本或输入问题开始对话
+                </Typography>
+              )
             ) : (
+              // 历史记录显示
               <List>
                 {chatHistory.map((message, index) => (
                   <ListItem 
@@ -192,6 +207,28 @@ const LearningAssistant = React.memo(({
           </Box>
         </TabPanel>
       </Box>
+
+      {/* 底部按钮区域 */}
+      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+        <Stack direction="row" spacing={2} justifyContent="center">
+          <Button
+            variant="outlined"
+            startIcon={<History />}
+            onClick={handleToggleHistory}
+            size="small"
+          >
+            {showHistory ? '返回对话' : '查看记录'}
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Summarize />}
+            onClick={handleSummarize}
+            size="small"
+          >
+            今日总结
+          </Button>
+        </Stack>
+      </Box>
     </Card>
   );
 }, (prevProps, nextProps) => {
@@ -199,7 +236,7 @@ const LearningAssistant = React.memo(({
   return prevProps.selectedText === nextProps.selectedText &&
          prevProps.explanation === nextProps.explanation &&
          prevProps.isLoading === nextProps.isLoading;
-  // 注意：不比较onQueryExplanation，因为它应该是一个稳定的回调函数
 });
 
 export default LearningAssistant; 
+
