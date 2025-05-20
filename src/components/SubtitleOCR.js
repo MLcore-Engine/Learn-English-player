@@ -48,7 +48,22 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
 
   return (
     <div className="subtitle-ocr">
-      <button onClick={handleRecognize} disabled={loading}>
+      <button onClick={handleRecognize} disabled={loading}
+       style={{
+        width: '100%',
+        padding: '8px 0',
+        borderRadius: 8,
+        border: '1px solid #1976d2',
+        background: '#fff',
+        color: '#1976d2',
+        fontWeight: 600,
+        fontSize: 14,
+        letterSpacing: 1,
+        boxShadow: '0 1px 4px rgba(25, 118, 210, 0.06)',
+        transition: 'background 0.2s, color 0.2s',
+        cursor: loading ? 'not-allowed' : 'pointer'
+      }}
+      >
         {loading ? '识别中...' : '识别字幕'}
       </button>
     </div>

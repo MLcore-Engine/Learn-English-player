@@ -2,7 +2,10 @@ import React, { useState, useCallback, useEffect } from 'react';
 import TimeStats from './TimeStats';
 import OCRContainer from '../containers/OCRContainer';
 import AIContainer from '../containers/AIContainer';
-import { useTimeStats } from '../contexts/AppContext';
+import OCRResultModal from '../components/OCRResultModal';
+import { useTimeStats, useAI } from '../contexts/AppContext';
+import { Box } from '@mui/material';
+import aiService from '../utils/aiService';
 
 /**
  * 侧边面板组件
@@ -13,6 +16,16 @@ const SidePanel = React.memo(() => {
   const [width, setWidth] = useState(360); // 默认宽度
   const [isDragging, setIsDragging] = useState(false);
   
+  // OCR弹窗相关状态
+  const [ocrModalOpen, setOcrModalOpen] = useState(false);
+  const [ocrResult, setOcrResult] = useState('');
+  const [ocrLoading, setOcrLoading] = useState(false);
+
+  // AI解释相关状态
+  const [explainLoading, setExplainLoading] = useState(false);
+  // AI上下文动作
+  const { setSelectedText, setExplanation, setLoading: setAiLoading, addRecord } = useAI();
+
   // 从localStorage加载保存的宽度
   useEffect(() => {
     const savedWidth = localStorage.getItem('sidePanelWidth');
@@ -62,19 +75,71 @@ const SidePanel = React.memo(() => {
     formatTime
   };
   
+  // OCRContainer的回调，识别完成后弹窗
+  const handleOCRRecognize = useCallback((recognizedText) => {
+    // 如果收到的是 loading 文本，只更新 loading 状态
+    if (recognizedText === '识别中...') {
+      setOcrLoading(true);
+      return;
+    }
+    
+    // 否则更新结果并显示弹窗
+    setOcrResult(recognizedText);
+    setOcrModalOpen(true);
+    setOcrLoading(false);
+  }, []);
+
+  // 解释按钮回调
+  const handleExplain = useCallback(async (lang, selectedText) => {
+    const text = selectedText || ocrResult;
+    if (!text) {
+      // 兜底提示
+      alert('没有可解释的文字');
+      return;
+    }
+    // 设置模块和上下文的 loading 状态
+    setExplainLoading(true);
+    setAiLoading(true);
+    setSelectedText(text);
+    try {
+      // 调用前端 AI 服务获取解释
+      const explanation = await aiService.getExplanation(text, { language: lang });
+      // 上下文中更新解释及记录
+      setExplanation(explanation);
+      addRecord({ subtitle_text: text, explanation, timestamp: Date.now() });
+    } catch (error) {
+      console.error('AI解释失败:', error);
+      // TODO: 可以弹出错误提示
+    } finally {
+      // 重置状态，关闭弹窗
+      setAiLoading(false);
+      setExplainLoading(false);
+      setOcrModalOpen(false);
+      setOcrResult('');
+    }
+  }, [ocrResult, setAiLoading, setSelectedText, setExplanation, addRecord]);
+
+  // 关闭弹窗
+  const handleCloseModal = useCallback(() => {
+    setOcrModalOpen(false);
+    setOcrResult(''); // 清空OCR结果
+    setExplainLoading(false); // 确保重置loading状态
+  }, []);
+
   return (
-    <div style={{ 
+    <Box sx={{ 
       width: width, 
       borderLeft: '1px solid #444', 
       backgroundColor: '#111', 
       display: 'flex', 
       flexDirection: 'column',
       overflow: 'hidden',
-      position: 'relative'
+      position: 'relative',
+      height: '100%'
     }}>
       {/* 拖动条 */}
-      <div
-        style={{
+      <Box
+        sx={{
           position: 'absolute',
           left: 0,
           top: 0,
@@ -82,31 +147,61 @@ const SidePanel = React.memo(() => {
           width: '4px',
           cursor: 'col-resize',
           backgroundColor: isDragging ? '#666' : 'transparent',
-          transition: 'background-color 0.2s'
+          transition: 'background-color 0.2s',
+          '&:hover': {
+            backgroundColor: '#666'
+          }
         }}
         onMouseDown={handleDragStart}
       />
-      
-      <div style={{ 
-        padding: '10px', 
-        flexShrink: 0, 
-        display: 'flex', 
-        alignItems: 'center',
-        justifyContent: 'space-between'
+      {/* 顶部区域加position: relative，模态框绝对定位覆盖 */}
+      <Box sx={{
+        width: '100%',
+        position: 'relative',
+        pt: 1.5,
+        pb: 0.5,
+        px: 2,
+        backgroundColor: 'background.paper',
+        borderBottom: '1px solid rgba(255,255,255,0.08)'
       }}>
-        <OCRContainer />
-        <TimeStats {...timeStatsProps} />
-      </div>
+        <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', gap: 2 }}>
+          <Box sx={{ flex: 1, width: '48%' }}>
+            <OCRContainer onRecognize={handleOCRRecognize} isLoading={ocrLoading} />
+          </Box>
+          <Box sx={{ flex: 4, display: 'flex', justifyContent: 'flex-end' }}>
+            <TimeStats {...timeStatsProps} smallFont horizontal/>
+          </Box>
+        </Box>
+        {/* 绝对定位的模态框 */}
+        <Box sx={{ position: 'relative' }}>
+          <OCRResultModal
+            isOpen={ocrModalOpen}
+            result={ocrResult}
+            onExplain={handleExplain}
+            onClose={handleCloseModal}
+            isLoading={explainLoading}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              zIndex: 10
+            }}
+          />
+        </Box>
+
+      </Box>
       
-      <div style={{ 
+      <Box sx={{ 
         flex: 1,
         overflow: 'hidden',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        backgroundColor: 'background.default'
       }}>
         <AIContainer />
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 });
 

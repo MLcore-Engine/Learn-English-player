@@ -54,11 +54,11 @@ const AIContainer = React.memo(() => {
       setExplanation(result);
       
       // 添加到学习记录
-      addRecord({
-        subtitle_text: text,
-        explanation: result,
-        timestamp: Date.now()
-      });
+      // addRecord({
+      //   subtitle_text: text,
+      //   explanation: result,
+      //   timestamp: Date.now()
+      // });
       
       return result;
     } catch (error) {
@@ -68,7 +68,7 @@ const AIContainer = React.memo(() => {
     } finally {
       setLoading(false);
     }
-  }, [setSelectedText, setExplanation, setLoading, addRecord]);
+  }, [setSelectedText, setExplanation, setLoading]);
 
   // 标记是否已加载记录，避免重复请求
   const loadedPathRef = useRef(null);
@@ -130,7 +130,7 @@ const AIContainer = React.memo(() => {
   const assistantProps = {
     selectedText,
     explanation,
-    learningRecords: records,
+    // learningRecords: records,
     isLoading: loading,
     onQueryExplanation: handleQueryExplanation
   };
