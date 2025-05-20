@@ -155,23 +155,29 @@ class AIService {
       };
       
       // 发送请求
-      const response = await axiosInstance.post(
-        this.config.apiUrl,
-        requestData,
-        {
-          headers: {
-            'Authorization': `Bearer ${this.config.apiKey}`
-          }
+      let data;
+      // 如果在 Electron 环境下，可通过主进程发起请求，避免 CORS
+      if (window.electronAPI && typeof window.electronAPI.performAIRequest === 'function') {
+        const result = await window.electronAPI.performAIRequest(requestData, this.config.apiUrl, this.config.apiKey);
+        if (!result.success) {
+          throw new Error(result.error || '主进程 AI 请求失败');
         }
-      );
+        data = result.data;
+      } else {
+        const response = await axiosInstance.post(
+          this.config.apiUrl,
+          requestData,
+          { headers: { 'Authorization': `Bearer ${this.config.apiKey}` } }
+        );
+        data = response.data;
+      }
       
       // 检查响应状态
-      if (!response.data) {
+      if (!data) {
         throw new Error('服务器返回空响应');
       }
       
       // 提取回复内容，兼容不同返回格式
-      const data = response.data;
       let result = '';
       if (data.message && data.message.content) {
         result = data.message.content;

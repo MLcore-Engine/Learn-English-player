@@ -2,12 +2,14 @@
 // 预加载脚本，将Node.js API暴露给渲染进程
 
 console.log('--- Preload script: START ---');
-
-// 引入必要模块
+// 仅引入 Electron IPC
 const { contextBridge, ipcRenderer } = require('electron');
 
 // 白名单，列出允许渲染进程调用的IPC通道
 const allowedInvokeChannels = [
+  'readVideoFile', // 新增：读取视频文件二进制数据
+  'readVideoChunk', // 新增：分段读取文件
+  'performAIRequest', // 新增：AI 请求通过主进程发起，避免 CORS
   'extract-frame',
   'selectSubtitle',
   'selectVideo',
@@ -15,9 +17,12 @@ const allowedInvokeChannels = [
   'saveLearningRecord',
   'saveAiQuery',
   'getLearningRecords',
+  'getAiQueriesToday',
   'saveApiKey',
   'getApiKey',
-  'install-update'  // 新增：用于触发更新安装
+  'install-update',  // 新增：用于触发更新安装
+  'saveQueryHistory', // 新增：用于保存查询历史
+  'getVideoServerPort'
 ];
 
 const allowedSendChannels = [
@@ -168,10 +173,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateWatchTime: (watchTimeData) => ipcRenderer.send('updateWatchTime', watchTimeData),
   saveLearningRecord: (record) => ipcRenderer.invoke('saveLearningRecord', record),
   saveAiQuery: (data) => ipcRenderer.invoke('saveAiQuery', data),
+  getAiQueriesToday: () => ipcRenderer.invoke('getAiQueriesToday'),
   getLearningRecords: (videoId) => ipcRenderer.invoke('getLearningRecords', videoId),
   
   // 系统信息
-  platform: process.platform
+  platform: process.platform,
+  
+  // AI 请求
+  performAIRequest: (requestData, apiUrl, apiKey) => ipcRenderer.invoke('performAIRequest', { requestData, apiUrl, apiKey }),
+  
+  // 读取视频文件数据
+  readVideoFile: (filePath) => ipcRenderer.invoke('readVideoFile', filePath),
+  // 新增：分段读取视频文件
+  readVideoChunk: (videoPath, offset, length) => ipcRenderer.invoke('readVideoChunk', videoPath, offset, length),
+  
+  // 获取本地视频 HTTP 服务端口
+  getVideoServerPort: () => Promise.resolve(6459),
+  // 生成本地视频 HTTP URL
+  getVideoHttpUrl: (videoPath) => Promise.resolve(`http://127.0.0.1:6459/video?path=${encodeURIComponent(videoPath)}`)
 });
 
 console.log('--- Preload script: END ---'); 

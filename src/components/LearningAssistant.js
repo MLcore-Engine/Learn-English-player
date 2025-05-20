@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -55,7 +55,19 @@ const LearningAssistant = React.memo(({
   };
 
   // 切换历史记录显示
-  const handleToggleHistory = () => {
+  const handleToggleHistory = async () => {
+    if (!showHistory) {
+      if (window.electronAPI && window.electronAPI.getAiQueriesToday) {
+        const records = await window.electronAPI.getAiQueriesToday();
+        setChatHistory(records.map(rec => ({
+          type: 'history',
+          id: rec.id,
+          query: rec.query,
+          text: rec.explanation,
+          created_at: rec.created_at
+        })));
+      }
+    }
     setShowHistory(!showHistory);
   };
 
@@ -65,24 +77,6 @@ const LearningAssistant = React.memo(({
     console.log('生成今日总结');
   };
   
-  // 当收到新的解释时，添加到聊天历史
-  useEffect(() => {
-    if (explanation && selectedText) {
-      // 只有当解释不是聊天历史中的最后一条消息时才添加
-      if (chatHistory.length === 0 || 
-          chatHistory[chatHistory.length - 1].text !== explanation) {
-        setChatHistory([
-          ...chatHistory, 
-          { 
-            type: 'assistant', 
-            text: explanation, 
-            query: selectedText 
-          }
-        ]);
-      }
-    }
-  }, [explanation, selectedText, chatHistory]);
-
   // 渲染当前对话内容
   const renderCurrentDialogue = () => {
     if (!explanation) {
@@ -131,6 +125,8 @@ const LearningAssistant = React.memo(({
           }}
         >
           <ListItemText
+            primary={message.query}
+            secondaryTypographyProps={{ component: 'div' }}
             secondary={
               <Box sx={{ mt: 1 }}>
                 <Typography

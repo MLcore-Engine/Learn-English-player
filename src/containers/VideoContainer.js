@@ -3,6 +3,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import { useVideo, useTimeStats } from '../contexts/AppContext';
 import { useElectronIPC } from '../hooks/useElectronIPC';
 import { useSubtitle } from '../hooks/useSubtitle';
+import videojs from 'video.js';
 
 /**
  * 视频容器组件
@@ -50,55 +51,55 @@ const VideoContainer = React.memo(() => {
   // 监听视频播放/暂停事件以启动/停止时间统计
   useEffect(() => {
     if (!videoPath || !videoRef.current) return;
+    
     // 新视频加载，重置加载状态
     setVideoLoaded(false);
     
-    const videoEl = videoRef.current;
+    const player = videojs(videoRef.current);
     
+    // 定义事件处理函数
     const handlePlay = () => {
       setIsPlaying(true);
       startWatchTimer(videoPath, videoRef);
     };
-    
     const handlePause = () => {
       setIsPlaying(false);
       stopWatchTimer();
     };
-    
     const handleEnded = () => {
       setIsPlaying(false);
       stopWatchTimer();
     };
-    
     const handleLoadedMetadata = () => {
-      setDuration(videoEl.duration);
-      // 视频元数据加载完成，标记为已加载
+      setDuration(player.duration());
       setVideoLoaded(true);
     };
+    const handleErrorEvent = () => {
+      setVideoLoaded(false);
+    };
     
-    const handleError = () => setVideoLoaded(false);
-    
-    videoEl.addEventListener('play', handlePlay);
-    videoEl.addEventListener('pause', handlePause);
-    videoEl.addEventListener('ended', handleEnded);
-    videoEl.addEventListener('loadedmetadata', handleLoadedMetadata);
-    videoEl.addEventListener('error', handleError);
+    // 使用 video.js 的事件监听
+    player.on('play', handlePlay);
+    player.on('pause', handlePause);
+    player.on('ended', handleEnded);
+    player.on('loadedmetadata', handleLoadedMetadata);
+    player.on('error', handleErrorEvent);
     
     // 初始化时，如果视频已经在播放，则启动计时器
-    if (videoEl && !videoEl.paused) {
-      handlePlay();
+    if (!player.paused()) {
+      setIsPlaying(true);
+      startWatchTimer(videoPath, videoRef);
     }
     
     return () => {
-      // 清理事件监听
-      if (videoEl) {
-        videoEl.removeEventListener('play', handlePlay);
-        videoEl.removeEventListener('pause', handlePause);
-        videoEl.removeEventListener('ended', handleEnded);
-        videoEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        videoEl.removeEventListener('error', handleError);
-      }
+      // 移除事件监听
+      player.off('play', handlePlay);
+      player.off('pause', handlePause);
+      player.off('ended', handleEnded);
+      player.off('loadedmetadata', handleLoadedMetadata);
+      player.off('error', handleErrorEvent);
       stopWatchTimer();
+      // 不再销毁播放器，VideoPlayer 会处理 dispose
     };
   }, [videoPath, videoRef, setIsPlaying, setDuration, startWatchTimer, stopWatchTimer, setVideoLoaded]);
 

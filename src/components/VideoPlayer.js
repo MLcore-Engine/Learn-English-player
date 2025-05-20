@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef, useEffect } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
 
@@ -8,55 +8,80 @@ import 'video.js/dist/video-js.css';
  */
 const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) => {
   const playerRef = useRef(null);
+  const playerInitializedRef = useRef(false);
+
+  // 清理播放器实例的函数
+  const cleanupPlayer = () => {
+    if (playerRef.current) {
+      try {
+        // 先暂停播放
+        if (playerRef.current.pause) {
+          playerRef.current.pause();
+        }
+        // 确保播放器实例存在且有效
+        if (playerRef.current.el_ && playerRef.current.el_.parentNode) {
+          playerRef.current.dispose();
+        }
+      } catch (error) {
+        console.error('【渲染进程】清理播放器实例时出错:', error);
+      }
+      playerRef.current = null;
+      playerInitializedRef.current = false;
+    }
+  };
+
+  // 监听 videoPath 变化
+  useEffect(() => {
+    // 当 videoPath 改变时，清理旧的播放器实例
+    // cleanupPlayer(); // No longer needed due to component remounting via key
+  }, [videoPath]);
 
   useLayoutEffect(() => {
     let canceled = false;
+    let player = null;
+
     if (!videoPath) return;
+
     (async () => {
       try {
-        let videoSrcUrl = `file://${videoPath}`;
-        const currentPlatform = window.electronAPI.platform; 
-        if (currentPlatform === 'win32' && /^[a-zA-Z]:\\/.test(videoPath)) {
-          videoSrcUrl = `file:///${videoPath.replace(/\\/g, '/')}`;
-        }
+        if (playerRef.current) cleanupPlayer();
+
         const videoEl = videoRef.current;
-        videoEl.addEventListener('loadedmetadata', () => {
-          // 原生 video loadedmetadata 事件
-        });
-        videoEl.addEventListener('canplay', () => { /* 原生 video canplay 事件 */ });
-        videoEl.addEventListener('canplaythrough', () => { /* 原生 video canplaythrough 事件 */ });
-        videoEl.addEventListener('error', (e) => console.error('[DEBUG] 原生 video element error', videoEl.error, e));
-        if (canceled) {
-          return;
-        }
-        if (!videoRef.current) {
+        if (!videoEl) {
           console.error('【渲染进程】视频元素未找到，无法初始化播放器');
           return;
         }
+
+        // 初始化 Video.js 播放器
         const options = {
-          fluid: true,
-          autoplay: true,
+          autoplay: false,
           controls: true,
           preload: 'auto',
           width: '100%',
           height: '100%',
-          responsive: true
+          html5: { nativeVideoTracks: true, nativeAudioTracks: true, nativeTextTracks: true },
+          liveui: false,
+          inactivityTimeout: 3000,
+          playbackRates: [0.5, 1, 1.5, 2]
         };
-        
-        if (playerRef.current) {
-          playerRef.current.dispose();
-          playerRef.current = null;
-        }
-        
+
+        videoEl.className = 'video-js vjs-big-play-centered';
         await new Promise(resolve => requestAnimationFrame(resolve));
-        const player = videojs(videoRef.current, options);
+        player = videojs(videoEl, options);
         playerRef.current = player;
-        
-        // 显式设置音量
+
+        // 设置音量及其他事件
         player.volume(0.3);
-        
-        player.src({ src: videoSrcUrl, type: 'video/mp4' });
-        // 节流：仅当秒数变化时才调用 onTimeUpdate，避免高频触发
+
+        player.tech().on('waiting', () => console.log('【渲染进程】视频缓冲中...'));
+        player.tech().on('canplay', () => console.log('【渲染进程】视频可以播放'));
+        player.on('error', (e) => {
+          const error = player.error();
+          console.error('【渲染进程】Video.js错误:', { code: error.code, message: error.message, detail: e });
+        });
+        player.on('loadeddata', () => {
+          // 不在此处触发播放
+        });
         let lastReportedSecond = -1;
         player.on('timeupdate', () => {
           const currentSecond = Math.floor(player.currentTime());
@@ -65,14 +90,14 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
             onTimeUpdate(currentSecond);
           }
         });
-        
-        player.on('ready', () => { /* 播放器准备就绪 */ });
-        player.on('loadeddata', () => {
-          player.play().catch(e => console.error('【渲染进程】播放失败:', e));
-        });
-        player.on('error', (e) => {
-          console.error('【渲染进程】Video.js错误:', player.error(), e);
-        });
+        player.on('ready', () => console.log('播放器准备就绪'));
+
+        // 使用本地 HTTP 范围流式加载视频
+        const videoUrl = await window.electronAPI.getVideoHttpUrl(videoPath);
+        player.src({ src: videoUrl, type: 'video/mp4' });
+        player.play().catch(e => console.error('【渲染进程】播放失败:', e));
+
+        // 字幕轨道处理
         const tracks = player.textTracks();
         for (let i = 0; i < tracks.length; i++) {
           const t = tracks[i];
@@ -82,17 +107,15 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
             if (cues.length) onSubtitleSelect(cues[0].text);
           });
         }
+
       } catch (e) {
         console.error('【渲染进程】加载视频出错:', e);
       }
     })();
 
-    return () => { // 组件卸载时清理
+    return () => {
       canceled = true;
-      if (playerRef.current) {
-        playerRef.current.dispose();
-        playerRef.current = null;
-      }
+      if (playerRef.current) cleanupPlayer();
     };
   }, [videoPath, onTimeUpdate, onSubtitleSelect, videoRef]);
 
@@ -111,7 +134,7 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
       }}
     >
       <div 
-        key={videoPath}
+        // key={videoPath} // Removed: Component-level key is sufficient
         data-vjs-player 
         style={{
           width: '100%',
@@ -124,13 +147,14 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
         }}
       >
         <video
+          crossOrigin="anonymous"
           ref={videoRef}
-          className="video-js vjs-big-play-centered vjs-fluid"
+          className="video-js vjs-big-play-centered"
           controls
           preload="auto"
           playsInline
           style={{ width: '100%', height: '100%' }}
-          data-setup="{}"
+          // data-setup="{}" // Removed: Manual initialization is used
         >
           <p className="vjs-no-js">
             请启用JavaScript以查看此视频
@@ -140,10 +164,8 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
     </div>
   );
 }, (prevProps, nextProps) => {
-  // 自定义比较函数，只有关键props变化时才重新渲染
   return prevProps.videoPath === nextProps.videoPath &&
          prevProps.videoRef === nextProps.videoRef;
-  // 注意：我们不比较onTimeUpdate和onSubtitleSelect，因为它们是稳定的回调函数
 });
 
 export default VideoPlayer;

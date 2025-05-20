@@ -14,7 +14,6 @@ const AIContainer = React.memo(() => {
     selectedText, 
     explanation, 
     loading, 
-    records,
     setSelectedText,
     setExplanation,
     setLoading,
@@ -53,12 +52,14 @@ const AIContainer = React.memo(() => {
       const result = await aiService.getExplanation(text);
       setExplanation(result);
       
-      // 添加到学习记录
-      // addRecord({
-      //   subtitle_text: text,
-      //   explanation: result,
-      //   timestamp: Date.now()
-      // });
+      // 保存查询记录到数据库
+      if (window.electronAPI) {
+        await window.electronAPI.saveAiQuery({
+          query: text,
+          explanation: result,
+          timestamp: new Date().toISOString()
+        });
+      }
       
       return result;
     } catch (error) {

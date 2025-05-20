@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
@@ -8,6 +8,13 @@ const Store = require('electron-store'); // 引入electron-store用于保存配�
 const crypto = require('crypto');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
+const axios = require('axios');
+const express = require('express');
+const http = require('http');
+const urlModule = require('url');
+
+// 注册为安全协议，支持流媒体加载
+protocol.registerSchemesAsPrivileged([{ scheme: 'lep', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, bypassCSP: true } }]);
 
 // 创建配置存储实例
 const store = new Store();
@@ -124,9 +131,77 @@ autoUpdater.logger = log;
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// ===== 新增：本地HTTP服务器用于视频范围请求 =====
+let videoServerPort;
+// 启动本地 HTTP 服务用于视频流分段加载
+const videoServer = http.createServer((req, res) => {
+  // 添加 CORS 支持
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Range');
+  // 处理预检请求
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    return res.end();
+  }
+  const parsedUrl = urlModule.parse(req.url, true);
+  if (parsedUrl.pathname !== '/video') {
+    res.statusCode = 404;
+    return res.end();
+  }
+  const fileParam = parsedUrl.query.path;
+  const decodedPath = decodeURIComponent(fileParam || '');
+  const filePath = path.isAbsolute(decodedPath) ? decodedPath : path.resolve(decodedPath);
+  if (!fs.existsSync(filePath)) {
+    res.statusCode = 404;
+    return res.end();
+  }
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+  if (!range) {
+    res.writeHead(200, { 'Content-Length': fileSize, 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes' });
+    return fs.createReadStream(filePath).pipe(res);
+  }
+  const parts = range.replace(/bytes=/, '').split('-');
+  const start = parseInt(parts[0], 10);
+  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+  const chunksize = end - start + 1;
+  res.writeHead(206, {
+    'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+    'Accept-Ranges': 'bytes',
+    'Content-Length': chunksize,
+    'Content-Type': 'video/mp4'
+  });
+  return fs.createReadStream(filePath, { start, end }).pipe(res);
+});
+videoServerPort = 6459;
+videoServer.listen(videoServerPort, '127.0.0.1', () => {
+  console.log('【主进程】视频 HTTP 服务启动，端口:', videoServerPort);
+});
+// IPC: 获取视频服务器端口
+ipcMain.handle('getVideoServerPort', () => 6459);
+
+// 注册自定义协议 app:// 用于文件直接访问（可选）
+protocol.registerSchemesAsPrivileged([{ scheme: 'lep', privileges: { standard: true, secure: true } }]);
+// 添加新的 app 协议
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true } }]);
+
 // 应用启动时创建窗口
 app.whenReady().then(async () => {
-  
+  // 注册 app:// 协议，映射到 videos 目录
+  protocol.registerFileProtocol('app', (request, callback) => {
+    const urlPath = request.url.replace('app:///', '');
+    const decodedPath = decodeURIComponent(urlPath);
+    const baseDir = path.join(__dirname, 'videos');
+    const filePath = path.join(baseDir, decodedPath);
+    // 安全检查，防止越权访问
+    if (!filePath.startsWith(baseDir) || !fs.existsSync(filePath)) {
+      return callback({ error: -6 });
+    }
+    return callback({ path: filePath });
+  });
+
   // 确保数据目录存在
   if (!fs.existsSync(DATA_PATH)) {
     fs.mkdirSync(DATA_PATH, { recursive: true });
@@ -180,6 +255,18 @@ app.whenReady().then(async () => {
         created_at TEXT NOT NULL
       );
     `);
+    // 创建查询历史记录表
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS query_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query_text TEXT NOT NULL,
+        response_text TEXT,
+        query_type TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        video_id TEXT,
+        FOREIGN KEY (video_id) REFERENCES video_progress(video_id)
+      );
+    `);
     
     // 验证表是否成功创建
     try {
@@ -218,7 +305,7 @@ app.whenReady().then(async () => {
       contextIsolation: true,
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false, // 允许加载本地资源
+      webSecurity: true, // 启用 webSecurity
     }
   });
   
@@ -238,6 +325,21 @@ app.whenReady().then(async () => {
           .then(title => console.log('开发服务器页面标题:', title))
           .catch(e => console.error('无法获取开发服务器页面标题:', e));
       }
+      // 设置 CSP 头
+      mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+        // 跳过自定义 lep 协议的 CSP 限制，直接返回原始头
+        if (details.url.startsWith('lep://')) {
+          return callback({ responseHeaders: details.responseHeaders });
+        }
+        // 对其他请求，添加 CSP，允许 lep: 和 media-src
+        const csp = "default-src 'self' lep:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self' lep: data: blob: http://127.0.0.1:* http://localhost:*;";
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Content-Security-Policy': [csp]
+          }
+        });
+      });
     })
     .catch(err => {
       console.error(`加载URL失败: ${startUrl}`, err); // 保留
@@ -848,6 +950,41 @@ ipcMain.handle('saveAiQuery', (event, { query, explanation, timestamp }) => {
   }
 });
 
+// IPC 处理：保存查询历史记录
+ipcMain.handle('saveQueryHistory', (event, { query_text, response_text, query_type, video_id }) => {
+  console.log('【主进程】收到 saveQueryHistory 请求:', { query_text });
+  if (!db) return { success: false, error: '数据库未初始化' };
+  try {
+    const stmt = db.prepare(
+      'INSERT INTO query_history (query_text, response_text, query_type, video_id, created_at) VALUES (?, ?, ?, ?, ?)'
+    );
+    const result = stmt.run(
+      query_text,
+      response_text,
+      query_type,
+      video_id,
+      new Date().toISOString()
+    );
+    return { success: true, id: result.lastInsertRowid };
+  } catch (error) {
+    console.error('【主进程】保存查询历史失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 新增: 获取今日 AI 查询记录
+ipcMain.handle('getAiQueriesToday', (event) => {
+  if (!db) return [];
+  try {
+    const stmt = db.prepare("SELECT * FROM ai_queries WHERE date(created_at) = date('now','localtime') ORDER BY created_at DESC");
+    const rows = stmt.all();
+    return rows;
+  } catch (error) {
+    console.error('【主进程】获取今日 AI 查询记录失败:', error);
+    return [];
+  }
+});
+
 // 监听更新事件
 autoUpdater.on('update-available', () => {
   mainWindow.webContents.send('update-available');
@@ -861,3 +998,51 @@ autoUpdater.on('update-downloaded', () => {
 ipcMain.handle('install-update', () => {
   autoUpdater.quitAndInstall();
 });
+
+// IPC：在主进程中发起 AI 请求，避免渲染进程 CORS 限制
+ipcMain.handle('performAIRequest', async (event, { requestData, apiUrl, apiKey }) => {
+  try {
+    const response = await axios.post(
+      apiUrl,
+      requestData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        }
+      }
+    );
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('【主进程】AI 请求失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// --- 结束 IPC 处理程序 ---
+ipcMain.handle('readVideoFile', (event, filePath) => {
+  try {
+    // 读取视频文件并返回数据
+    return fs.readFileSync(filePath);
+  } catch (error) {
+    console.error('【主进程】读取视频文件失败:', error);
+    throw error;
+  }
+});
+
+// 新增：分段读取视频数据接口，返回指定偏移和长度的 Buffer
+ipcMain.handle('readVideoChunk', async (event, videoPath, offset, length) => {
+  try {
+    const fd = await fs.promises.open(videoPath, 'r');
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await fd.read(buffer, 0, length, offset);
+    await fd.close();
+    // 如果读取的字节少于请求长度，截断返回
+    return bytesRead < length ? buffer.slice(0, bytesRead) : buffer;
+  } catch (error) {
+    console.error('【主进程】readVideoChunk 错误:', error);
+    return null;
+  }
+});
+
+// --- 继续其他代码 ---
