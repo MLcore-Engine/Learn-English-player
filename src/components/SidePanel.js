@@ -3,7 +3,7 @@ import TimeStats from './TimeStats';
 import OCRContainer from '../containers/OCRContainer';
 import AIContainer from '../containers/AIContainer';
 import OCRResultModal from '../components/OCRResultModal';
-import { useTimeStats, useAI } from '../contexts/AppContext';
+import { useTimeStats, useAI, useVideo } from '../contexts/AppContext';
 import { Box } from '@mui/material';
 import aiService from '../utils/aiService';
 
@@ -25,6 +25,9 @@ const SidePanel = React.memo(() => {
   const [explainLoading, setExplainLoading] = useState(false);
   // AI上下文动作
   const { setSelectedText, setExplanation, setLoading: setAiLoading, addRecord } = useAI();
+
+  // 视频加载状态从 context 获取
+  const { isLoaded: isVideoLoaded } = useVideo();
 
   // 从localStorage加载保存的宽度
   useEffect(() => {
@@ -166,7 +169,7 @@ const SidePanel = React.memo(() => {
       }}>
         <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', gap: 2 }}>
           <Box sx={{ flex: 1, width: '48%' }}>
-            <OCRContainer onRecognize={handleOCRRecognize} isLoading={ocrLoading} />
+            <OCRContainer onRecognize={handleOCRRecognize} isLoading={ocrLoading} videoReady={isVideoLoaded} />
           </Box>
           <Box sx={{ flex: 4, display: 'flex', justifyContent: 'flex-end' }}>
             <TimeStats {...timeStatsProps} smallFont horizontal/>

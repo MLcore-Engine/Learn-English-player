@@ -11,6 +11,8 @@ export const videoReducer = (state, action) => {
       return { ...state, isPlaying: action.payload };
     case 'SET_SUBTITLE_TEXT':
       return { ...state, subtitleText: action.payload };
+    case 'SET_VIDEO_LOADED':
+      return { ...state, isLoaded: action.payload };
     default:
       return state;
   }

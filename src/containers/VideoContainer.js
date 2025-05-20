@@ -15,7 +15,8 @@ const VideoContainer = React.memo(() => {
     setCurrentTime, 
     setDuration, 
     setIsPlaying, 
-    setSubtitleText 
+    setSubtitleText,
+    setVideoLoaded
   } = useVideo();
   
   const { startWatchTimer, stopWatchTimer } = useTimeStats();
@@ -49,6 +50,8 @@ const VideoContainer = React.memo(() => {
   // 监听视频播放/暂停事件以启动/停止时间统计
   useEffect(() => {
     if (!videoPath || !videoRef.current) return;
+    // 新视频加载，重置加载状态
+    setVideoLoaded(false);
     
     const videoEl = videoRef.current;
     
@@ -69,12 +72,17 @@ const VideoContainer = React.memo(() => {
     
     const handleLoadedMetadata = () => {
       setDuration(videoEl.duration);
+      // 视频元数据加载完成，标记为已加载
+      setVideoLoaded(true);
     };
+    
+    const handleError = () => setVideoLoaded(false);
     
     videoEl.addEventListener('play', handlePlay);
     videoEl.addEventListener('pause', handlePause);
     videoEl.addEventListener('ended', handleEnded);
     videoEl.addEventListener('loadedmetadata', handleLoadedMetadata);
+    videoEl.addEventListener('error', handleError);
     
     // 初始化时，如果视频已经在播放，则启动计时器
     if (videoEl && !videoEl.paused) {
@@ -88,10 +96,11 @@ const VideoContainer = React.memo(() => {
         videoEl.removeEventListener('pause', handlePause);
         videoEl.removeEventListener('ended', handleEnded);
         videoEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        videoEl.removeEventListener('error', handleError);
       }
       stopWatchTimer();
     };
-  }, [videoPath, videoRef, setIsPlaying, setDuration, startWatchTimer, stopWatchTimer]);
+  }, [videoPath, videoRef, setIsPlaying, setDuration, startWatchTimer, stopWatchTimer, setVideoLoaded]);
 
   // 如果没有视频路径，显示提示
   if (!videoPath) {

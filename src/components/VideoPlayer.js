@@ -52,6 +52,9 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
         const player = videojs(videoRef.current, options);
         playerRef.current = player;
         
+        // 显式设置音量
+        player.volume(0.3);
+        
         player.src({ src: videoSrcUrl, type: 'video/mp4' });
         // 节流：仅当秒数变化时才调用 onTimeUpdate，避免高频触发
         let lastReportedSecond = -1;

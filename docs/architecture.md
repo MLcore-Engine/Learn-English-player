@@ -237,61 +237,195 @@
   - [ ] 支持导出总结报告
   - [ ] 添加词汇复习提醒功能
 
+### 3. 查询内容存储与优化
+- [ ] 查询内容存储功能
+  - [ ] 实现查询内容自动保存到数据库
+  - [ ] 设计查询历史记录表
+  - [ ] 添加查询内容分类功能
+  - [ ] 实现查询内容检索功能
+  - [ ] 添加查询内容导出功能
+
+### 4. 系统提示词优化
+- [ ] Few-shot学习优化
+  - [ ] 设计优化后的系统提示词
+  - [ ] 实现Few-shot示例管理
+  - [ ] 添加提示词模板系统
+  - [ ] 实现提示词动态调整功能
+  - [ ] 添加提示词效果评估机制
+
+### 5. 界面展示优化
+- [ ] 输出页面格式优化
+  - [ ] 重新设计输出页面布局
+  - [ ] 优化内容展示结构
+  - [ ] 添加内容格式化功能
+  - [ ] 实现响应式布局适配
+  - [ ] 添加自定义主题支持
+
+### 6. API与提示词系统完善
+- [ ] 总结API开发
+  - [ ] 设计总结生成API
+  - [ ] 实现总结内容分析
+  - [ ] 添加总结模板系统
+  - [ ] 实现总结内容导出
+  - [ ] 添加总结质量评估
+
+- [ ] 提示词系统完善
+  - [ ] 设计提示词管理界面
+  - [ ] 实现提示词版本控制
+  - [ ] 添加提示词测试功能
+  - [ ] 实现提示词效果分析
+  - [ ] 添加提示词优化建议
+
+### 7. OCR识别优化
+- [ ] 提升OCR识别准确度
+  - [ ] 优化图像预处理流程
+    - [ ] 实现自适应图像增强
+    - [ ] 添加噪声消除功能
+    - [ ] 优化对比度调整
+    - [ ] 实现智能裁剪功能
+  - [ ] 改进文字识别算法
+    - [ ] 实现多模型融合识别
+    - [ ] 添加语言模型校正
+    - [ ] 优化字符分割算法
+    - [ ] 实现上下文关联分析
+  - [ ] 添加字幕类型适配
+    - [ ] 支持硬字幕识别
+    - [ ] 支持软字幕提取
+    - [ ] 支持多语言字幕
+    - [ ] 支持特效字幕处理
+  - [ ] 实现智能后处理
+    - [ ] 添加文本纠错功能
+    - [ ] 实现时间轴对齐
+    - [ ] 优化字幕分段
+    - [ ] 添加格式标准化
+
 ### 数据库表结构更新
 ```sql
--- 新增视频转换记录表
-CREATE TABLE video_conversions (
+-- 新增查询历史记录表
+CREATE TABLE query_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    original_path TEXT NOT NULL,
-    converted_path TEXT NOT NULL,
-    original_format TEXT NOT NULL,
-    target_format TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- 新增每日词汇表
-CREATE TABLE daily_vocabulary (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    word TEXT NOT NULL,
-    translation TEXT,
-    context TEXT,
-    video_id INTEGER,
-    query_count INTEGER DEFAULT 1,
-    last_queried DATETIME DEFAULT CURRENT_TIMESTAMP,
+    query_text TEXT NOT NULL,
+    response_text TEXT,
+    query_type TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (video_id) REFERENCES video_progress(id)
+    video_id TEXT,
+    FOREIGN KEY (video_id) REFERENCES video_progress(video_id)
 );
 
--- 新增每日总结表
-CREATE TABLE daily_summaries (
+-- 新增提示词模板表
+CREATE TABLE prompt_templates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date DATE UNIQUE NOT NULL,
-    total_words INTEGER DEFAULT 0,
-    summary_text TEXT,
+    name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    category TEXT,
+    version TEXT,
+    is_active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 新增Few-shot示例表
+CREATE TABLE few_shot_examples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id INTEGER,
+    example_text TEXT NOT NULL,
+    category TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (template_id) REFERENCES prompt_templates(id)
+);
+
+-- 新增总结记录表
+CREATE TABLE summary_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id TEXT,
+    summary_type TEXT,
+    content TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (video_id) REFERENCES video_progress(video_id)
+);
+
+-- 新增OCR识别记录表
+CREATE TABLE ocr_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id TEXT,
+    frame_time REAL,
+    original_text TEXT,
+    processed_text TEXT,
+    confidence_score REAL,
+    language TEXT,
+    subtitle_type TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (video_id) REFERENCES video_progress(video_id)
+);
+
+-- 新增OCR模型配置表
+CREATE TABLE ocr_model_configs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_name TEXT NOT NULL,
+    model_type TEXT NOT NULL,
+    parameters TEXT,
+    is_active BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 新增字幕样式配置表
+CREATE TABLE subtitle_style_configs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    style_name TEXT NOT NULL,
+    font_family TEXT,
+    font_size INTEGER,
+    font_color TEXT,
+    background_color TEXT,
+    position TEXT,
+    is_active BOOLEAN DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
 ### 新功能实现计划
 
-1. **FFmpeg视频转换功能**
-   - 在主进程中添加FFmpeg相关功能
-   - 创建视频转换服务
-   - 实现转换进度监控
-   - 添加转换队列管理
-   - 实现转换参数配置
+1. **查询内容存储系统**
+   - 实现查询内容自动保存
+   - 设计查询历史管理界面
+   - 实现查询内容检索功能
+   - 添加查询内容导出功能
 
-2. **每日词汇总结功能**
-   - 实现词汇记录和统计
-   - 创建总结生成服务
-   - 设计总结展示界面
-   - 实现导出功能
-   - 添加复习提醒系统
+2. **提示词优化系统**
+   - 实现提示词管理功能
+   - 添加Few-shot示例管理
+   - 实现提示词效果评估
+   - 添加提示词优化建议
+
+3. **界面展示优化**
+   - 重新设计输出页面
+   - 优化内容展示结构
+   - 实现响应式布局
+   - 添加主题支持
+
+4. **总结系统开发**
+   - 实现总结生成API
+   - 设计总结模板系统
+   - 添加总结质量评估
+   - 实现总结内容导出
+
+5. **OCR系统优化**
+   - 实现图像预处理优化
+   - 改进文字识别算法
+   - 添加字幕类型适配
+   - 实现智能后处理
+   - 优化识别性能
 
 ## 注意事项
-1. 确保FFmpeg正确安装和配置
-2. 注意视频转换过程中的内存使用
-3. 实现适当的错误处理机制
-4. 考虑添加转换任务队列管理
-5. 注意数据备份和恢复机制  
+1. 确保数据安全和隐私保护
+2. 实现适当的错误处理机制
+3. 注意系统性能优化
+4. 考虑用户体验和界面交互
+5. 注意数据备份和恢复机制
+6. 确保OCR识别的准确性和效率
+7. 注意不同字幕格式的兼容性
+8. 确保数据安全和隐私保护
+9. 实现适当的错误处理机制
+10. 注意系统性能优化
+11. 考虑用户体验和界面交互
+12. 注意数据备份和恢复机制  

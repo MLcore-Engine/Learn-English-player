@@ -6,13 +6,14 @@ import { useVideo } from '../contexts/AppContext';
  * OCR容器组件
  * 渲染 SubtitleOCR 按钮，由父组件通过 props 管理识别结果和弹窗
  */
-const OCRContainer = React.memo(({ onRecognize, isLoading }) => {
+const OCRContainer = React.memo(({ onRecognize, isLoading, videoReady }) => {
   const { videoRef } = useVideo();
   return (
     <SubtitleOCR
       videoRef={videoRef}
-      onRecognize={onRecognize}
       isLoading={isLoading}
+      videoReady={videoReady}
+      onRecognize={onRecognize}
     />
   );
 });

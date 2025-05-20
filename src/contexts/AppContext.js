@@ -62,7 +62,8 @@ export const VideoProvider = ({ children }) => {
     currentTime: 0,
     duration: 0,
     isPlaying: false,
-    subtitleText: ''
+    subtitleText: '',
+    isLoaded: false // 视频加载状态
   });
   
   const videoRef = useRef(null);
@@ -73,7 +74,8 @@ export const VideoProvider = ({ children }) => {
     setCurrentTime: (time) => dispatch({ type: 'SET_CURRENT_TIME', payload: time }),
     setDuration: (duration) => dispatch({ type: 'SET_DURATION', payload: duration }),
     setIsPlaying: (isPlaying) => dispatch({ type: 'SET_IS_PLAYING', payload: isPlaying }),
-    setSubtitleText: (text) => dispatch({ type: 'SET_SUBTITLE_TEXT', payload: text })
+    setSubtitleText: (text) => dispatch({ type: 'SET_SUBTITLE_TEXT', payload: text }),
+    setVideoLoaded: (loaded) => dispatch({ type: 'SET_VIDEO_LOADED', payload: loaded })
   }), []); // 空依赖数组，确保actions只创建一次
 
   return (
