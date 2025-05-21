@@ -13,7 +13,7 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
   
   // 使用 context 中的 duration 判断视频是否加载完成
   // Также получаем externalSubtitles из контекста
-  const { duration, externalSubtitles, currentTime } = useVideo();
+  const { duration, externalSubtitles } = useVideo(); // Removed currentTime
   const isVideoReady = duration > 0;
 
   const handleRecognize = async () => {

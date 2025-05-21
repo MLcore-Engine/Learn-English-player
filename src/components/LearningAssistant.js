@@ -75,7 +75,7 @@ const LearningAssistant = React.memo(({
     if (showSummary) {
       setShowSummary(false);
     }
-  }, [explanation]);
+  }, [explanation, showSummary]);
 
   // 复制文本到剪贴板
   const handleCopyText = (text) => {

@@ -6,7 +6,7 @@ import {
   ocrReducer,
   apiKeyReducer
 } from '../reducers';
-import { parseSrt, parseVtt } from '../../utils/subtitleParser.js';
+import { parseSrt, parseVtt } from '../utils/subtitleParser.js';
 
 // 创建各个功能模块的上下文
 const VideoContext = createContext();

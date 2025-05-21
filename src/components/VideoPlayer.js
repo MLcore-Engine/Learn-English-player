@@ -10,6 +10,7 @@ import ExternalSubtitleDisplay from './ExternalSubtitleDisplay'; // Import Exter
  */
 const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) => {
   const playerRef = useRef(null);
+  const playerInitializedRef = useRef(false); // Define playerInitializedRef
   const { externalSubtitles, currentTime } = useVideo(); // Get data from context
 
   // 清理播放器实例的函数
@@ -39,7 +40,7 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
   }, [videoPath]);
 
   useLayoutEffect(() => {
-    let canceled = false;
+    // let canceled = false; // Removed: Unused variable
     let player = null;
 
     if (!videoPath) return;
@@ -116,7 +117,7 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
     })();
 
     return () => {
-      canceled = true;
+      // canceled = true; // Removed: Unused variable
       if (playerRef.current) cleanupPlayer();
     };
   }, [videoPath, onTimeUpdate, onSubtitleSelect, videoRef]);

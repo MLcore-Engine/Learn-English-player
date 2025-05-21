@@ -80,7 +80,7 @@ export const useApiKey = () => {
     } finally {
       cache.isFetching = false;
     }
-  }, []); // 移除 setStatus 依赖 
+  }, [setStatus]); // Added setStatus to dependency array
 
   // 保存API Key的函数
   const saveApiKey = useCallback(async () => {
@@ -109,7 +109,7 @@ export const useApiKey = () => {
   // 在组件挂载时获取API Key状态
   useEffect(() => {
     fetchApiKey();
-  }, []); // 只在组件挂载时执行一次
+  }, [fetchApiKey]); // Added fetchApiKey to dependency array
 
   // 监听主进程发送的打开API Key设置事件
   useEffect(() => {
