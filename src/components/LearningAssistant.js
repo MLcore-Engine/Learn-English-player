@@ -87,18 +87,54 @@ const LearningAssistant = React.memo(({
       );
     }
 
+    // 将解释文本分割成不同部分
+    const parts = clean(explanation).split('\n\n');
+    
     return (
       <Box sx={{ p: 2 }}>
-        <Typography
-          variant="body2"
-          component="div"
-          sx={{ whiteSpace: 'pre-wrap' }}
-          dangerouslySetInnerHTML={{
-            __html: clean(explanation)
-              .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-              .replace(/\n/g, '<br/>')
-          }}
-        />
+        {parts.map((part, index) => {
+          // 检查是否是标题行（包含数字和点）
+          const isTitle = /^\d+\./.test(part);
+          
+          return (
+            <Box 
+              key={index} 
+              sx={{ 
+                mb: 2,
+                pb: 2,
+                borderBottom: index < parts.length - 1 ? '1px solid rgba(0, 0, 0, 0.12)' : 'none'
+              }}
+            >
+              <Typography
+                variant={isTitle ? "subtitle1" : "body2"}
+                component="div"
+                sx={{ 
+                  whiteSpace: 'pre-wrap',
+                  fontSize: isTitle ? '1.1rem' : '1rem',
+                  lineHeight: 1.6,
+                  '& strong': {
+                    color: 'primary.main',
+                    fontWeight: 600,
+                    fontSize: '1.05rem'
+                  },
+                  '& code': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                    padding: '2px 4px',
+                    borderRadius: 1,
+                    fontFamily: 'monospace',
+                    fontSize: '0.95rem'
+                  }
+                }}
+                dangerouslySetInnerHTML={{
+                  __html: part
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/`(.+?)`/g, '<code>$1</code>')
+                    .replace(/\n/g, '<br/>')
+                }}
+              />
+            </Box>
+          );
+        })}
         <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
           <IconButton 
             size="small" 
@@ -126,7 +162,6 @@ const LearningAssistant = React.memo(({
         >
           <ListItemText
             primary={message.query}
-            secondaryTypographyProps={{ component: 'div' }}
             secondary={
               <Box sx={{ mt: 1 }}>
                 <Typography
