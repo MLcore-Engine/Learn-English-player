@@ -10,10 +10,13 @@
     "start-react": "cross-env PUBLIC_URL=. react-app-rewired start",
     "electron-wait": "wait-on tcp:3000 && electron . --devServerUrl=http://localhost:3000",
     "start-electron": "electron . --devServerUrl=http://localhost:3000",
-    "build": "react-app-rewired build",
-    "package": "npm run build && electron-builder build --win --mac --linux",
+    "build": "react-app-rewired build && cp main.js build/ && cp preload.js build/",
+    "package": "npm run build:electron && electron-builder --publish never",
     "debug": "electron --inspect-brk=5858 .",
-    "generate-icons": "node scripts/generate-electron-icons.js"
+    "generate-icons": "node scripts/generate-electron-icons.js",
+    "postinstall": "electron-builder install-app-deps",
+    "build:web": "react-app-rewired build",
+    "build:electron": "npm run build:web && cp main.js build/ && cp preload.js build/"
   },
   "author": "adam gao",
   "license": "AGPL-3.0",
@@ -27,6 +30,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.9.0",
     "better-sqlite3": "^11.10.0",
     "bootstrap": "^5.3.5",
     "electron-log": "^5.0.0",
@@ -56,11 +60,16 @@
     "extends": null,
     "appId": "com.mlcore-engine.lep",
     "productName": "lep",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/tesseract.js/**"
+    ],
+    "compression": "maximum",
     "files": [
       "build/**/*",
       "main.js",
-      "preload.js",
-      "main/**/*"
+      "preload.js"
     ],
     "extraResources": [
       {
@@ -74,81 +83,26 @@
         "to": "bin"
       }
     ],
-    "asar": true,
-    "asarUnpack": [
-      "node_modules/better-sqlite3",
-      "node_modules/ffmpeg-static",
-      "node_modules/tesseract.js"
-    ],
-    "directories": {
-      "buildResources": "assets",
-      "output": "dist"
-    },
     "mac": {
       "category": "public.app-category.education",
       "icon": "assets/icon.icns",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "entitlements.plist",
-      "entitlementsInherit": "entitlements.plist",
-      "darkModeSupport": true,
-      "notarize": false,
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
+        "dmg",
+        "zip"
       ]
     },
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
       "icon": "assets/icon.ico",
-      "publisherName": [
-        "adam gao"
-      ],
-      "signAndEditExecutable": true
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
+      "icon": "assets/icon-512.png",
       "target": [
         "AppImage",
         "deb"
-      ],
-      "category": "Education",
-      "icon": "assets/icon-512.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "lep",
-      "displayLanguageSelector": true,
-      "installerLanguages": [
-        "zh_CN",
-        "en_US"
       ]
     }
   },
