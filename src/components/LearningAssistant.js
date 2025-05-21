@@ -42,7 +42,6 @@ const clean = (raw) => raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
  * 显示AI解释内容和学习记录
  */
 const LearningAssistant = React.memo(({ 
-  selectedText, 
   explanation
 }) => {
   // 状态管理
@@ -157,27 +156,62 @@ const LearningAssistant = React.memo(({
           sx={{ 
             backgroundColor: message.type === 'user' ? 'rgba(0, 0, 0, 0.05)' : 'transparent',
             borderRadius: 1,
-            mb: 1
+            mb: 2,
+            p: 2,
+            border: '1px solid rgba(0, 0, 0, 0.12)',
+            '&:hover': {
+              backgroundColor: 'rgba(0, 0, 0, 0.02)'
+            }
           }}
         >
           <ListItemText
-            primary={message.query}
+            primary={
+              <Typography 
+                variant="subtitle2" 
+                color="text.secondary"
+                sx={{ mb: 1 }}
+              >
+                {message.query}
+              </Typography>
+            }
             secondary={
               <Box sx={{ mt: 1 }}>
                 <Typography
                   variant="body2"
                   component="div"
-                  sx={{ whiteSpace: 'pre-wrap' }}
+                  sx={{ 
+                    whiteSpace: 'pre-wrap',
+                    fontSize: '1rem',
+                    lineHeight: 1.6,
+                    '& strong': {
+                      color: 'primary.main',
+                      fontWeight: 600,
+                      fontSize: '1.05rem'
+                    },
+                    '& code': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                      padding: '2px 4px',
+                      borderRadius: 1,
+                      fontFamily: 'monospace',
+                      fontSize: '0.95rem'
+                    }
+                  }}
                   dangerouslySetInnerHTML={{
                     __html: clean(message.text)
                       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                      .replace(/`(.+?)`/g, '<code>$1</code>')
                       .replace(/\n/g, '<br/>')
                   }}
                 />
-                <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                   <IconButton 
                     size="small" 
                     onClick={() => handleCopyText(clean(message.text))}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                      }
+                    }}
                   >
                     <ContentCopy fontSize="small" />
                   </IconButton>
