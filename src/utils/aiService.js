@@ -172,6 +172,9 @@ Do not use Chinese.
 Use only American English.
 Make sure your explanation focuses on the word's usage and context in everyday, native-level American English.`;
 
+
+
+
 /**
  * AI服务类 - 负责与大语言模型API通信
  */
@@ -311,6 +314,26 @@ class AIService {
     } else {
       return `"${text}" 的解释:\n\n这是一段文本，在实际应用中会由AI模型生成解释。当前使用模拟数据进行展示。`;
     }
+  }
+
+  /**
+   * 生成包含今日学习词汇的有意义段落，并添加中文翻译和标签
+   * @returns {Promise<string>} 生成的内容，包含 <shengcheng> 标签
+   */
+  async generateVocabularyStory() {
+    // 获取今日查询的词汇记录
+    let records = [];
+    if (window.electronAPI?.getAiQueriesToday) {
+      records = await window.electronAPI.getAiQueriesToday();
+    }
+    const words = records.map(r => r.query).join('\n');
+    const prompt = 
+`这是我今天学到的所有词汇：
+${words}
+
+请将这些词汇编写成一个简单而易懂、富有意义的英文段落，突出这些词汇的特点。每句话后面都给出中文翻译，并将生成的段落放入到 <shengcheng> 和 </shengcheng> 标签中。`;
+    // 调用通用解释接口生成内容
+    return this.getExplanation(prompt, { language: 'zh' });
   }
 }
 

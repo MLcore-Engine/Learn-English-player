@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -8,9 +8,16 @@ import {
   ListItem,
   ListItemText,
   IconButton,
-  Stack
+  Stack,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import { ContentCopy, History, Summarize } from '@mui/icons-material';
+import aiService from '../utils/aiService';
 
 // 清理文本中的特殊标记
 const clean = (raw) => raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
@@ -42,11 +49,33 @@ const clean = (raw) => raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
  * 显示AI解释内容和学习记录
  */
 const LearningAssistant = React.memo(({ 
+ 
   explanation
 }) => {
   // 状态管理
   const [showHistory, setShowHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
+  const [summary, setSummary] = useState('');
+  const [showSummary, setShowSummary] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [openConfirm, setOpenConfirm] = useState(false);
+  const [hasSummarizedToday, setHasSummarizedToday] = useState(false);
+
+  // 初始化：检查本地存储是否已生成今日总结
+  useEffect(() => {
+    const lastDate = localStorage.getItem('lastSummaryDate');
+    const today = new Date().toISOString().slice(0, 10);
+    if (lastDate === today) {
+      setHasSummarizedToday(true);
+    }
+  }, []);
+
+  // 当 explanation 更新时，隐藏今日总结视图
+  useEffect(() => {
+    if (showSummary) {
+      setShowSummary(false);
+    }
+  }, [explanation]);
 
   // 复制文本到剪贴板
   const handleCopyText = (text) => {
@@ -67,17 +96,92 @@ const LearningAssistant = React.memo(({
         })));
       }
     }
+    // 切换历史记录时，隐藏今日总结
+    setShowSummary(false);
     setShowHistory(!showHistory);
   };
 
-  // 处理今日总结
+  // 处理今日总结：弹出确认或提示已使用
   const handleSummarize = () => {
-    // TODO: 实现今日总结功能
-    console.log('生成今日总结');
+    if (hasSummarizedToday) {
+      alert('今日总结每天只能使用一次');
+      return;
+    }
+    setOpenConfirm(true);
+  };
+
+  // 确认生成今日总结
+  const handleConfirmSummarize = async () => {
+    setOpenConfirm(false);
+    setIsSummarizing(true);
+    try {
+      const result = await aiService.generateVocabularyStory();
+      setSummary(result);
+      setShowSummary(true);
+      const today = new Date().toISOString().slice(0, 10);
+      localStorage.setItem('lastSummaryDate', today);
+      setHasSummarizedToday(true);
+    } catch (error) {
+      console.error('生成今日总结失败:', error);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  // 取消生成
+  const handleCancelSummarize = () => {
+    setOpenConfirm(false);
   };
   
   // 渲染当前对话内容
   const renderCurrentDialogue = () => {
+    if (showSummary) {
+      if (isSummarizing) {
+        return (
+          <Typography variant="body2" color="text.secondary" align="center">
+            正在生成总结...
+          </Typography>
+        );
+      }
+      // 提取标签内内容并渲染
+      const storyHtml = summary.replace(/<\/?shengcheng>/g, '');
+      return (
+        <Box sx={{ p: 2 }}>
+          <Typography
+            variant="body2"
+            component="div"
+            sx={{ 
+              whiteSpace: 'pre-wrap',
+              fontSize: '1rem',
+              lineHeight: 1.6,
+              '& strong': {
+                color: 'primary.main',
+                fontWeight: 600,
+                fontSize: '1.05rem'
+              },
+              '& code': {
+                backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                padding: '2px 4px',
+                borderRadius: 1,
+                fontFamily: 'monospace',
+                fontSize: '0.95rem'
+              }
+            }}
+            dangerouslySetInnerHTML={{
+              __html: storyHtml
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`(.+?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br/>')
+            }}
+          />
+          <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+            <IconButton size="small" onClick={() => handleCopyText(storyHtml)}>
+              <ContentCopy fontSize="small" />
+            </IconButton>
+          </Box>
+        </Box>
+      );
+    }
     if (!explanation) {
       return (
         <Typography variant="body2" color="text.secondary" align="center">
@@ -255,14 +359,30 @@ const LearningAssistant = React.memo(({
           </Button>
           <Button
             variant="outlined"
-            startIcon={<Summarize />}
+            startIcon={isSummarizing ? <CircularProgress size={16} /> : <Summarize />}
             onClick={handleSummarize}
             size="small"
+            disabled={isSummarizing}
           >
-            今日总结
+            {isSummarizing ? '生成中...' : '今日总结'}
           </Button>
         </Stack>
       </Box>
+
+      {/* 确认对话框：每日最后一次使用 */}
+      <Dialog open={openConfirm} onClose={handleCancelSummarize}>
+        <DialogTitle>确认生成今日总结</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            今日总结只能在今天学习完成后最后使用，并且每天只能使用一次，确认要继续吗？
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelSummarize}>取消</Button>
+          <Button onClick={handleConfirmSummarize} autoFocus>确认</Button>
+        </DialogActions>
+      </Dialog>
+
     </Card>
   );
 }, (prevProps, nextProps) => {
