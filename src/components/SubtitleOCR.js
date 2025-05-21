@@ -12,25 +12,40 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
   const loading = externalLoading !== undefined ? externalLoading : internalLoading;
   
   // 使用 context 中的 duration 判断视频是否加载完成
-  const { duration } = useVideo();
+  // Также получаем externalSubtitles из контекста
+  const { duration, externalSubtitles, currentTime } = useVideo();
   const isVideoReady = duration > 0;
 
   const handleRecognize = async () => {
     console.log('SubtitleOCR handleRecognize invoked, videoRef.current:', videoRef.current);
-    
-    // 检查视频是否已加载
-    if (!isVideoReady) {
-      console.warn('SubtitleOCR: 视频未加载，无法进行OCR识别');
-      onRecognize && onRecognize('请先加载视频');
+
+    if (!isVideoReady || !videoRef.current) {
+      console.warn('SubtitleOCR: 视频未加载或videoRef无效，无法操作');
+      onRecognize?.('请先加载视频');
       return;
     }
+
+    // Check if external subtitles are available
+    if (externalSubtitles && externalSubtitles.length > 0) {
+      const currentVideoTime = videoRef.current.currentTime;
+      const activeSub = externalSubtitles.find(
+        (sub) => currentVideoTime >= sub.startTime && currentVideoTime <= sub.endTime
+      );
+
+      if (activeSub) {
+        onRecognize?.(activeSub.text);
+      } else {
+        onRecognize?.('当前时间无外部字幕'); // Or an empty string: onRecognize?.('');
+      }
+      return; // Skip OCR if external subtitles were processed
+    }
+
+    // --- Proceed with image-based OCR if no external subtitles ---
     
     // 暂停视频再进行OCR识别
-    if (videoRef.current) {
-      videoRef.current.pause();
-    }
+    videoRef.current.pause();
     
-    onRecognize && onRecognize('识别中...');
+    onRecognize?.('识别中...'); // Notify UI that OCR is starting
     
     if (externalLoading === undefined) {
       setInternalLoading(true);
@@ -38,15 +53,14 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
     
     try {
       const result = (await recognizeSubtitleFromVideo(videoRef.current)).trim();
-      // 处理未识别到文本的情况
       if (!result) {
-        onRecognize && onRecognize('未检测到字幕，请重试');
+        onRecognize?.('未检测到字幕，请重试');
       } else {
-        onRecognize && onRecognize(result);
+        onRecognize?.(result);
       }
     } catch (err) {
       console.error('OCR 识别失败', err);
-      onRecognize && onRecognize('识别失败，请重试');
+      onRecognize?.('识别失败，请重试');
     } finally {
       if (externalLoading === undefined) {
         setInternalLoading(false);
@@ -56,8 +70,8 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
 
   return (
     <div className="subtitle-ocr">
-      <button 
-        onClick={handleRecognize} 
+      <button
+        onClick={handleRecognize}
         disabled={loading || !isVideoReady}
         style={{
           width: '100%',
@@ -72,10 +86,16 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
           boxShadow: '0 1px 4px rgba(25, 118, 210, 0.06)',
           transition: 'background 0.2s, color 0.2s',
           cursor: (loading || !isVideoReady) ? 'not-allowed' : 'pointer',
-          opacity: (loading || !isVideoReady) ? 0.7 : 1
+          opacity: (loading || !isVideoReady) ? 0.7 : 1,
         }}
       >
-        {loading ? '识别中...' : !isVideoReady ? '视频加载...' : '识别字幕'}
+        {loading
+          ? '识别中...'
+          : !isVideoReady
+          ? '视频加载...'
+          : externalSubtitles && externalSubtitles.length > 0
+          ? '提取当前字幕'
+          : '识别字幕(OCR)'}
       </button>
     </div>
   );

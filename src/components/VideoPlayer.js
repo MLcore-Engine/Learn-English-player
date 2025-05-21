@@ -1,6 +1,8 @@
 import React, { useLayoutEffect, useRef, useEffect } from 'react';
 import videojs from 'video.js';
 import 'video.js/dist/video-js.css';
+import { useVideo } from '../contexts/AppContext'; // Import useVideo
+import ExternalSubtitleDisplay from './ExternalSubtitleDisplay'; // Import ExternalSubtitleDisplay
 
 /**
  * 视频播放器组件
@@ -8,7 +10,7 @@ import 'video.js/dist/video-js.css';
  */
 const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, videoRef }) => {
   const playerRef = useRef(null);
-  const playerInitializedRef = useRef(false);
+  const { externalSubtitles, currentTime } = useVideo(); // Get data from context
 
   // 清理播放器实例的函数
   const cleanupPlayer = () => {
@@ -82,13 +84,13 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
         player.on('loadeddata', () => {
           // 不在此处触发播放
         });
-        let lastReportedSecond = -1;
+        // let lastReportedSecond = -1; // No longer needed for per-second update
         player.on('timeupdate', () => {
-          const currentSecond = Math.floor(player.currentTime());
-          if (currentSecond !== lastReportedSecond) {
-            lastReportedSecond = currentSecond;
-            onTimeUpdate(currentSecond);
-          }
+          // const currentSecond = Math.floor(player.currentTime()); // Before
+          // if (currentSecond !== lastReportedSecond) { // Before
+            // lastReportedSecond = currentSecond; // Before
+            onTimeUpdate(player.currentTime()); // Update with more precise time
+          // } // Before
         });
         player.on('ready', () => console.log('播放器准备就绪'));
 
@@ -133,9 +135,8 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
         justifyContent: 'center'
       }}
     >
-      <div 
-        // key={videoPath} // Removed: Component-level key is sufficient
-        data-vjs-player 
+      <div
+        data-vjs-player
         style={{
           width: '100%',
           height: '100%',
@@ -154,18 +155,24 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, vid
           preload="auto"
           playsInline
           style={{ width: '100%', height: '100%' }}
-          // data-setup="{}" // Removed: Manual initialization is used
         >
           <p className="vjs-no-js">
             请启用JavaScript以查看此视频
           </p>
         </video>
       </div>
+      {externalSubtitles && externalSubtitles.length > 0 && (
+        <ExternalSubtitleDisplay subtitles={externalSubtitles} currentTime={currentTime} />
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
+  // We need to re-render if videoPath changes OR if the videoRef instance changes.
+  // Other props like onTimeUpdate, onSubtitleSelect are functions passed from App.js/MainLayout.js
+  // and should be stable if wrapped in useCallback there.
+  // Context changes (externalSubtitles, currentTime) will trigger re-render via useVideo hook.
   return prevProps.videoPath === nextProps.videoPath &&
-         prevProps.videoRef === nextProps.videoRef;
+         prevProps.videoRef === nextProps.videoRef; // Keep existing memo conditions
 });
 
 export default VideoPlayer;

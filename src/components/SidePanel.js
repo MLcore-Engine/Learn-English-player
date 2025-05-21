@@ -26,8 +26,9 @@ const SidePanel = React.memo(() => {
   // AI上下文动作
   const { setSelectedText, setExplanation, setLoading: setAiLoading, addRecord } = useAI();
 
-  // 视频加载状态从 context 获取
-  const { isLoaded: isVideoLoaded } = useVideo();
+  // 视频加载状态及外部字幕加载从 context 获取
+  const { isLoaded: isVideoLoaded, loadExternalSubtitles, externalSubtitles } = useVideo();
+  const [loadedSubtitleFileName, setLoadedSubtitleFileName] = useState('');
 
   // 从localStorage加载保存的宽度
   useEffect(() => {
@@ -129,11 +130,26 @@ const SidePanel = React.memo(() => {
     setExplainLoading(false); // 确保重置loading状态
   }, []);
 
+  const handleFileChange = useCallback(async (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      try {
+        await loadExternalSubtitles(file);
+        setLoadedSubtitleFileName(file.name); // Store filename for feedback
+        // alert(`Successfully loaded subtitles from ${file.name}`); // Feedback via AppContext
+      } catch (error) {
+        // Error already handled by alert in loadExternalSubtitles
+        setLoadedSubtitleFileName('');
+      }
+      event.target.value = null; // Allow re-uploading the same file
+    }
+  }, [loadExternalSubtitles]);
+
   return (
-    <Box sx={{ 
-      width: width, 
-      borderLeft: '1px solid #444', 
-      backgroundColor: '#111', 
+    <Box sx={{
+      width: width,
+      borderLeft: '1px solid #444',
+      backgroundColor: '#111',
       display: 'flex', 
       flexDirection: 'column',
       overflow: 'hidden',
@@ -167,16 +183,30 @@ const SidePanel = React.memo(() => {
         backgroundColor: 'background.paper',
         borderBottom: '1px solid rgba(255,255,255,0.08)'
       }}>
-        <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', gap: 2 }}>
-          <Box sx={{ flex: 1, width: '48%' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', gap: 2, alignItems: 'center' }}>
+          <Box sx={{ flex: 1, minWidth: '150px' }}> {/* Ensure OCRContainer has enough space */}
             <OCRContainer onRecognize={handleOCRRecognize} isLoading={ocrLoading} videoReady={isVideoLoaded} />
           </Box>
-          <Box sx={{ flex: 4, display: 'flex', justifyContent: 'flex-end' }}>
+          <Box sx={{ flex: 'auto', display: 'flex', justifyContent: 'flex-end' }}> {/* Allow TimeStats to take available space */}
             <TimeStats {...timeStatsProps} smallFont horizontal/>
           </Box>
         </Box>
+        {/* Input for loading external subtitles */}
+        <Box sx={{ mt: 1, mb: 0.5 }}>
+          <input
+            type="file"
+            accept=".srt,.vtt"
+            onChange={handleFileChange}
+            style={{ display: 'block', width: '100%', color: 'white' }}
+          />
+          {externalSubtitles && loadedSubtitleFileName && (
+            <p style={{ color: '#aaa', fontSize: '0.8em', marginTop: '4px', textAlign: 'center' }}>
+              Loaded: {loadedSubtitleFileName} ({externalSubtitles.length} cues)
+            </p>
+          )}
+        </Box>
         {/* 绝对定位的模态框 */}
-        <Box sx={{ position: 'relative' }}>
+        <Box sx={{ position: 'relative' }}> {/* Ensure this Box allows absolute positioning of children */}
           <OCRResultModal
             isOpen={ocrModalOpen}
             result={ocrResult}

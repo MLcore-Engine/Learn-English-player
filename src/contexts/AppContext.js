@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useReducer, useRef } from 'react';
-import { 
-  videoReducer, 
-  timeStatsReducer, 
-  aiReducer, 
-  ocrReducer, 
-  apiKeyReducer 
+import React, { createContext, useContext, useReducer, useRef, useCallback } from 'react';
+import {
+  videoReducer,
+  timeStatsReducer,
+  aiReducer,
+  ocrReducer,
+  apiKeyReducer
 } from '../reducers';
+import { parseSrt, parseVtt } from '../../utils/subtitleParser.js';
 
 // 创建各个功能模块的上下文
 const VideoContext = createContext();
@@ -63,27 +64,69 @@ export const VideoProvider = ({ children }) => {
     duration: 0,
     isPlaying: false,
     subtitleText: '',
-    isLoaded: false // 视频加载状态
+    isLoaded: false, // 视频加载状态
+    externalSubtitles: null, // 新增：外部字幕数据
   });
-  
+
   const videoRef = useRef(null);
 
-  // 确保actions是稳定的引用
-  const actions = React.useMemo(() => ({
-    setVideoPath: (path) => dispatch({ type: 'SET_VIDEO_PATH', payload: path }),
-    setCurrentTime: (time) => dispatch({ type: 'SET_CURRENT_TIME', payload: time }),
-    setDuration: (duration) => dispatch({ type: 'SET_DURATION', payload: duration }),
-    setIsPlaying: (isPlaying) => dispatch({ type: 'SET_IS_PLAYING', payload: isPlaying }),
-    setSubtitleText: (text) => dispatch({ type: 'SET_SUBTITLE_TEXT', payload: text }),
-    setVideoLoaded: (loaded) => dispatch({ type: 'SET_VIDEO_LOADED', payload: loaded })
-  }), []); // 空依赖数组，确保actions只创建一次
+  const setVideoPath = useCallback((path) => dispatch({ type: 'SET_VIDEO_PATH', payload: path }), []);
+  const setCurrentTime = useCallback((time) => dispatch({ type: 'SET_CURRENT_TIME', payload: time }), []);
+  const setDuration = useCallback((duration) => dispatch({ type: 'SET_DURATION', payload: duration }), []);
+  const setIsPlaying = useCallback((isPlaying) => dispatch({ type: 'SET_IS_PLAYING', payload: isPlaying }), []);
+  const setSubtitleText = useCallback((text) => dispatch({ type: 'SET_SUBTITLE_TEXT', payload: text }), []);
+  const setVideoLoaded = useCallback((loaded) => dispatch({ type: 'SET_VIDEO_LOADED', payload: loaded }), []);
+  const setExternalSubtitles = useCallback((subtitles) => dispatch({ type: 'SET_EXTERNAL_SUBTITLES', payload: subtitles }), []);
+
+  const loadExternalSubtitles = useCallback(async (file) => {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const content = event.target.result;
+      try {
+        let parsedSubtitles;
+        if (file.name.endsWith('.srt')) {
+          parsedSubtitles = parseSrt(content);
+        } else if (file.name.endsWith('.vtt')) {
+          parsedSubtitles = parseVtt(content);
+        } else {
+          console.error('Unsupported file type');
+          alert('Unsupported file type. Please select .srt or .vtt');
+          return;
+        }
+        setExternalSubtitles(parsedSubtitles);
+        console.log('External subtitles loaded:', parsedSubtitles);
+        alert(`Subtitles loaded from ${file.name}`);
+      } catch (error) {
+        console.error('Error parsing subtitle file:', error);
+        alert(`Error parsing subtitle file: ${error.message}`);
+        setExternalSubtitles(null);
+      }
+    };
+    reader.onerror = (error) => {
+      console.error('Error reading file:', error);
+      alert(`Error reading file: ${error.message}`);
+      setExternalSubtitles(null);
+    };
+    reader.readAsText(file);
+  }, [setExternalSubtitles]);
+  
+  const contextValue = React.useMemo(() => ({
+    ...state,
+    setVideoPath,
+    setCurrentTime,
+    setDuration,
+    setIsPlaying,
+    setSubtitleText,
+    setVideoLoaded,
+    setExternalSubtitles, // 暴露 setExternalSubtitles
+    loadExternalSubtitles, // 暴露 loadExternalSubtitles
+    videoRef
+  }), [state, setVideoPath, setCurrentTime, setDuration, setIsPlaying, setSubtitleText, setVideoLoaded, setExternalSubtitles, loadExternalSubtitles]);
 
   return (
-    <VideoContext.Provider value={{ 
-      ...state, 
-      ...actions,
-      videoRef
-    }}>
+    <VideoContext.Provider value={contextValue}>
       {children}
     </VideoContext.Provider>
   );
