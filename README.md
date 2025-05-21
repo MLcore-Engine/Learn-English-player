@@ -107,4 +107,4 @@ learn-e-player/
 
 ## 许可证
 
-MIT
+AGPL-3.0
