@@ -7,9 +7,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // 白名单，列出允许渲染进程调用的IPC通道
 const allowedInvokeChannels = [
-  'readVideoFile', // 新增：读取视频文件二进制数据
-  'readVideoChunk', // 新增：分段读取文件
-  'performAIRequest', // 新增：AI 请求通过主进程发起，避免 CORS
+  'readVideoFile',           // 新增：读取视频文件二进制数据
+  'readVideoChunk',          // 新增：分段读取文件
+  'performAIRequest',        // 新增：AI 请求通过主进程发起，避免 CORS
   'extract-frame',
   'selectSubtitle',
   'selectVideo',
@@ -20,9 +20,12 @@ const allowedInvokeChannels = [
   'getAiQueriesToday',
   'saveApiKey',
   'getApiKey',
-  'install-update',  // 新增：用于触发更新安装
-  'saveQueryHistory', // 新增：用于保存查询历史
-  'getVideoServerPort'
+  'install-update',          // 新增：用于触发更新安装
+  'saveQueryHistory',        // 新增：用于保存查询历史
+  'getVideoServerPort',
+  'prepareVideo',
+  'cleanupVideoCache',       // 添加新的通道
+  'checkFileExists'          // 添加：检查文件是否存在
 ];
 
 const allowedSendChannels = [
@@ -83,15 +86,34 @@ function checkRateLimit(channel) {
 // 使用 contextBridge 暴露 API
 contextBridge.exposeInMainWorld('electronAPI', {
   // 调用主进程函数 (通常用于请求数据或执行操作)
-  invoke: (channel, ...args) => {
+  invoke: async (channel, ...args) => {
     if (allowedInvokeChannels.includes(channel)) {
       try {
         checkRateLimit(channel);
         console.log(`【Preload】调用 invoke 通道: ${channel}`, args);
-        return ipcRenderer.invoke(channel, ...args);
+        const result = await ipcRenderer.invoke(channel, ...args);
+        return result;
       } catch (error) {
         console.error(`【Preload】invoke 调用失败: ${channel}`, error);
-        throw error;
+        // 确保错误信息被正确传递
+        if (error instanceof Error) {
+          throw {
+            message: error.message,
+            stack: error.stack,
+            code: error.code || 'UNKNOWN_ERROR'
+          };
+        } else if (typeof error === 'object') {
+          throw {
+            message: error.message || '未知错误',
+            code: error.code || 'UNKNOWN_ERROR',
+            details: error
+          };
+        } else {
+          throw {
+            message: String(error),
+            code: 'UNKNOWN_ERROR'
+          };
+        }
       }
     }
     console.error(`【Preload】阻止调用未授权的 invoke 通道: ${channel}`);
@@ -190,7 +212,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 获取本地视频 HTTP 服务端口
   getVideoServerPort: () => Promise.resolve(6459),
   // 生成本地视频 HTTP URL
-  getVideoHttpUrl: (videoPath) => Promise.resolve(`http://127.0.0.1:6459/video?path=${encodeURIComponent(videoPath)}`)
+  getVideoHttpUrl: (videoPath) => Promise.resolve(`http://127.0.0.1:6459/video?path=${encodeURIComponent(videoPath)}`),
+  
+  // 视频格式预处理：将 mkv/avi 转换为 mp4
+  prepareVideo: (filePath) => ipcRenderer.invoke('prepareVideo', filePath),
+  
+  // 视频格式转换相关
+  convertVideo: (params) => ipcRenderer.invoke('convertVideo', params),
+  checkVideoFormat: (filePath) => ipcRenderer.invoke('checkVideoFormat', filePath),
+  
+  // 清理视频缓存
+  cleanupVideoCache: () => ipcRenderer.invoke('cleanupVideoCache'),
+  // 检查文件是否存在
+  checkFileExists: (filePath) => ipcRenderer.invoke('checkFileExists', filePath)
 });
 
 console.log('--- Preload script: END ---'); 

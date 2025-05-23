@@ -98,11 +98,17 @@ export const useElectronIPC = () => {
     }
   }, []);
 
+  const checkFileExists = useCallback(async (filePath) => {
+    if (!window.electronAPI) return false;
+    return await window.electronAPI.invoke('checkFileExists', filePath);
+  }, []);
+
   return {
     selectVideo,
     saveLearningRecord,
     getLearningRecords,
-    extractFrame
+    extractFrame,
+    checkFileExists,
   };
 };
 

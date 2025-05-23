@@ -12,6 +12,31 @@ const axios = require('axios');
 // const express = require('express');
 const http = require('http');
 const urlModule = require('url');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const os = require('os');
+
+// 设置ffmpeg路径
+ffmpeg.setFfmpegPath(ffmpegPath);
+ffmpeg.setFfprobePath(ffmpegPath);
+
+// 验证ffmpeg路径
+if (!fs.existsSync(ffmpegPath)) {
+  console.error('FFmpeg路径不存在:', ffmpegPath);
+  throw new Error('FFmpeg安装失败，请重新安装应用');
+}
+
+console.log('FFmpeg路径:', ffmpegPath);
+
+// 检查ffmpeg是否可用
+try {
+  const { execSync } = require('child_process');
+  const version = execSync(`"${ffmpegPath}" -version`).toString();
+  console.log('FFmpeg版本信息:', version.split('\n')[0]);
+} catch (error) {
+  console.error('FFmpeg验证失败:', error);
+  throw new Error('FFmpeg验证失败，请重新安装应用');
+}
 
 // 注册为安全协议，支持流媒体加载
 protocol.registerSchemesAsPrivileged([{ scheme: 'lep', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, bypassCSP: true } }]);
@@ -186,6 +211,54 @@ ipcMain.handle('getVideoServerPort', () => 6459);
 protocol.registerSchemesAsPrivileged([{ scheme: 'lep', privileges: { standard: true, secure: true } }]);
 // 添加新的 app 协议
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true } }]);
+
+// 缓存管理配置
+const CACHE_CONFIG = {
+  maxSize: 1024 * 1024 * 1024, // 1GB 缓存限制
+  cleanupInterval: 24 * 60 * 60 * 1000, // 24小时清理一次
+  tmpDir: path.join(os.tmpdir(), 'converted-videos')
+};
+
+// 缓存管理函数
+async function cleanupCache() {
+  try {
+    if (!fs.existsSync(CACHE_CONFIG.tmpDir)) return;
+    
+    const files = await fs.promises.readdir(CACHE_CONFIG.tmpDir);
+    let totalSize = 0;
+    const fileStats = [];
+    
+    // 获取所有文件信息
+    for (const file of files) {
+      const filePath = path.join(CACHE_CONFIG.tmpDir, file);
+      const stats = await fs.promises.stat(filePath);
+      totalSize += stats.size;
+      fileStats.push({
+        path: filePath,
+        size: stats.size,
+        mtime: stats.mtime
+      });
+    }
+    
+    // 如果总大小超过限制，按最后修改时间排序并删除最旧的文件
+    if (totalSize > CACHE_CONFIG.maxSize) {
+      fileStats.sort((a, b) => a.mtime - b.mtime);
+      let currentSize = totalSize;
+      
+      for (const file of fileStats) {
+        if (currentSize <= CACHE_CONFIG.maxSize) break;
+        await fs.promises.unlink(file.path);
+        currentSize -= file.size;
+        console.log(`清理缓存文件: ${file.path}`);
+      }
+    }
+  } catch (error) {
+    console.error('清理缓存失败:', error);
+  }
+}
+
+// 定期清理缓存
+setInterval(cleanupCache, CACHE_CONFIG.cleanupInterval);
 
 // 应用启动时创建窗口
 app.whenReady().then(async () => {
@@ -1042,6 +1115,181 @@ ipcMain.handle('readVideoChunk', async (event, videoPath, offset, length) => {
   } catch (error) {
     console.error('【主进程】readVideoChunk 错误:', error);
     return null;
+  }
+});
+
+// 视频格式转换处理程序
+ipcMain.handle('convertVideo', async (event, { inputPath, outputPath }) => {
+  console.log('开始转换视频:', { inputPath, outputPath });
+  
+  try {
+    // 检查输入文件
+    if (!fs.existsSync(inputPath)) {
+      throw new Error('输入文件不存在');
+    }
+
+    // 检查输出目录
+    const outputDir = path.dirname(outputPath);
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    return new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .output(outputPath)
+        .videoCodec('libx264')  // 使用H.264编码
+        .audioCodec('aac')      // 使用AAC音频编码
+        .format('mp4')          // 输出MP4格式
+        .on('start', (commandLine) => {
+          console.log('转换命令:', commandLine);
+        })
+        .on('progress', (progress) => {
+          console.log('转换进度:', progress);
+          // 可以在这里发送进度到渲染进程
+          if (event.sender && !event.sender.isDestroyed()) {
+            event.sender.send('conversion-progress', progress);
+          }
+        })
+        .on('end', () => {
+          console.log('视频转换完成:', outputPath);
+          // 验证输出文件
+          if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+            resolve({ 
+              success: true, 
+              outputPath,
+              message: '视频转换成功'
+            });
+          } else {
+            reject({ 
+              success: false, 
+              error: '转换后的文件无效'
+            });
+          }
+        })
+        .on('error', (err) => {
+          console.error('视频转换错误:', err);
+          reject({ 
+            success: false, 
+            error: err.message || '视频转换失败'
+          });
+        })
+        .run();
+    });
+  } catch (error) {
+    console.error('视频转换过程出错:', error);
+    return {
+      success: false,
+      error: error.message || '视频转换失败'
+    };
+  }
+});
+
+// 检查视频格式
+ipcMain.handle('checkVideoFormat', async (event, filePath) => {
+  console.log('检查视频格式:', filePath);
+  
+  try {
+    // 首先检查文件是否存在
+    if (!fs.existsSync(filePath)) {
+      throw new Error('文件不存在');
+    }
+
+    // 检查文件大小
+    const stats = fs.statSync(filePath);
+    if (stats.size === 0) {
+      throw new Error('文件大小为0');
+    }
+
+    // 使用 Promise 包装 ffprobe
+    const metadata = await new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(filePath, (err, data) => {
+        if (err) {
+          console.error('FFprobe错误:', err);
+          reject(new Error(`ffprobe错误: ${err.message}`));
+          return;
+        }
+        resolve(data);
+      });
+    });
+
+    // 检查元数据格式
+    if (!metadata || !metadata.format) {
+      throw new Error('无法获取视频格式信息');
+    }
+
+    const result = {
+      success: true,
+      format: metadata.format.format_name,
+      isMP4: metadata.format.format_name.includes('mp4'),
+      duration: metadata.format.duration,
+      size: metadata.format.size,
+      bitrate: metadata.format.bit_rate
+    };
+
+    console.log('视频格式检查结果:', result);
+    return result;
+
+  } catch (error) {
+    console.error('检查视频格式时发生错误:', error);
+    return {
+      success: false,
+      error: error.message || '未知错误',
+      code: error.code || 'UNKNOWN_ERROR'
+    };
+  }
+});
+
+// prepareVideo: 转换 mkv/avi 到 mp4
+ipcMain.handle('prepareVideo', async (event, inputPath) => {
+  const ext = path.extname(inputPath).toLowerCase();
+  if (ext !== '.mp4') {
+    // 确保缓存目录存在
+    if (!fs.existsSync(CACHE_CONFIG.tmpDir)) {
+      await fs.promises.mkdir(CACHE_CONFIG.tmpDir, { recursive: true });
+    }
+    
+    const outputPath = path.join(CACHE_CONFIG.tmpDir, path.basename(inputPath, ext) + '.mp4');
+    
+    // 如果缓存文件不存在，进行转换
+    if (!fs.existsSync(outputPath)) {
+      await new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+          .output(outputPath)
+          .videoCodec('libx264')
+          .audioCodec('aac')
+          .format('mp4')
+          .on('end', resolve)
+          .on('error', reject)
+          .run();
+      });
+    }
+    
+    // 检查缓存大小，如果超过限制则清理
+    await cleanupCache();
+    
+    return outputPath;
+  }
+  return inputPath;
+});
+
+// 添加清理缓存的 IPC 处理程序
+ipcMain.handle('cleanupVideoCache', async () => {
+  try {
+    await cleanupCache();
+    return { success: true };
+  } catch (error) {
+    console.error('清理视频缓存失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 检查文件是否存在
+ipcMain.handle('checkFileExists', async (event, filePath) => {
+  try {
+    await fs.promises.access(filePath);
+    return true;
+  } catch {
+    return false;
   }
 });
 

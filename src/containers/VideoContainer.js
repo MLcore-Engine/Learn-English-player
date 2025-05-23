@@ -17,7 +17,8 @@ const VideoContainer = React.memo(() => {
     setDuration, 
     setIsPlaying, 
     setSubtitleText,
-    setVideoLoaded
+    setVideoLoaded,
+    subtitleText
   } = useVideo();
   
   const { startWatchTimer, stopWatchTimer } = useTimeStats();
@@ -135,14 +136,33 @@ const VideoContainer = React.memo(() => {
   }
 
   return (
-    <div style={{ flex: 1, backgroundColor: '#000' }}>
+    <div style={{ flex: 1, backgroundColor: '#000', position: 'relative' }}>
       <VideoPlayer
         key={videoPath}
         videoPath={videoPath}
         onTimeUpdate={handleTimeUpdate}
         onSubtitleSelect={handleSubtitleSelect}
         videoRef={videoRef}
+        subtitles={subtitles}
       />
+      {/* 字幕浮层展示 */}
+      {subtitleText && (
+        <div style={{
+          position: 'absolute',
+          bottom: '60px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          color: '#fff',
+          padding: '8px 16px',
+          borderRadius: '4px',
+          maxWidth: '80%',
+          textAlign: 'center',
+          zIndex: 1000
+        }}>
+          {subtitleText}
+        </div>
+      )}
     </div>
   );
 });
