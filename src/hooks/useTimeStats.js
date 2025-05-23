@@ -62,52 +62,6 @@ export const useTimeStats = () => {
     }
   }, [videoPath, fetchTimeStats]);
 
-  // 监听视频播放/暂停事件，启动或停止时长统计
-  useEffect(() => {
-    if (!videoPath || !videoRef || !videoRef.current) return;
-    
-    const videoEl = videoRef.current;
-    
-    const handlePlay = () => {
-      console.log('视频播放，开始计时');
-      startWatchTimer(videoPath, videoRef);
-    };
-    
-    const handlePause = () => {
-      console.log('视频暂停，停止计时');
-      stopWatchTimer();
-      // 保存当前的观看进度
-      updateWatchTime();
-    };
-    
-    const handleEnded = () => {
-      console.log('视频结束，停止计时');
-      stopWatchTimer();
-      // 保存当前的观看进度
-      updateWatchTime();
-    };
-    
-    // 添加事件监听
-    videoEl.addEventListener('play', handlePlay);
-    videoEl.addEventListener('pause', handlePause);
-    videoEl.addEventListener('ended', handleEnded);
-    
-    // 如果视频已经在播放中，立即启动计时器
-    if (!videoEl.paused) {
-      handlePlay();
-    }
-    
-    // 清理函数
-    return () => {
-      stopWatchTimer();
-      if (videoEl) {
-        videoEl.removeEventListener('play', handlePlay);
-        videoEl.removeEventListener('pause', handlePause);
-        videoEl.removeEventListener('ended', handleEnded);
-      }
-    };
-  }, [videoPath, videoRef, startWatchTimer, stopWatchTimer, updateWatchTime]);
-
   // 在组件卸载时保存最后的时长统计
   useEffect(() => {
     return () => {

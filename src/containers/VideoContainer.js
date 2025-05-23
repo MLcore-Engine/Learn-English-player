@@ -1,9 +1,9 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import VideoPlayer from '../components/VideoPlayer';
-import { useVideo, useTimeStats } from '../contexts/AppContext';
+import { useVideo, useTimeStats as useContextTimeStats } from '../contexts/AppContext';
 import { useElectronIPC } from '../hooks/useElectronIPC';
 import { useSubtitle } from '../hooks/useSubtitle';
-import videojs from 'video.js';
+import { useTimeStats as useTimeStatsHook } from '../hooks/useTimeStats';
 
 /**
  * 视频容器组件
@@ -21,11 +21,16 @@ const VideoContainer = React.memo(() => {
     subtitleText
   } = useVideo();
   
-  const { startWatchTimer, stopWatchTimer } = useTimeStats();
+  const { startWatchTimer, stopWatchTimer } = useContextTimeStats();
+  const { updateWatchTime } = useTimeStatsHook();
   const { selectVideo } = useElectronIPC();
   const { subtitles } = useSubtitle();
+  
+  // 使用ref来存储当前的videoPath，避免闭包问题
+  const currentVideoPathRef = useRef(videoPath);
+  currentVideoPathRef.current = videoPath;
 
-  // 处理视频时间更新
+  // 处理视频时间更新 - 稳定化
   const handleTimeUpdate = useCallback((currentTime) => {
     setCurrentTime(currentTime);
     
@@ -43,33 +48,36 @@ const VideoContainer = React.memo(() => {
     }
   }, [subtitles, setCurrentTime, setSubtitleText]);
 
-  // 处理字幕选择
+  // 处理字幕选择 - 稳定化
   const handleSubtitleSelect = useCallback((text) => {
     console.log('字幕选择:', text);
     // 用户点击字幕时的处理逻辑
   }, []);
 
-  // 监听视频播放/暂停事件以启动/停止时间统计
-  useEffect(() => {
-    if (!videoPath || !videoRef.current) return;
+  // 从VideoPlayer获取播放器实例的回调 - 稳定化
+  const handlePlayerReady = useCallback((player) => {
+    if (!player) return;
     
     // 新视频加载，重置加载状态
     setVideoLoaded(false);
     
-    const player = videojs(videoRef.current);
-    
     // 定义事件处理函数
     const handlePlay = () => {
+      console.log('视频播放，开始计时');
       setIsPlaying(true);
-      startWatchTimer(videoPath, videoRef);
+      startWatchTimer(currentVideoPathRef.current, videoRef);
     };
     const handlePause = () => {
+      console.log('视频暂停，停止计时');
       setIsPlaying(false);
       stopWatchTimer();
+      updateWatchTime();
     };
     const handleEnded = () => {
+      console.log('视频结束，停止计时');
       setIsPlaying(false);
       stopWatchTimer();
+      updateWatchTime();
     };
     const handleLoadedMetadata = () => {
       setDuration(player.duration());
@@ -88,21 +96,21 @@ const VideoContainer = React.memo(() => {
     
     // 初始化时，如果视频已经在播放，则启动计时器
     if (!player.paused()) {
+      console.log('视频已在播放，开始计时');
       setIsPlaying(true);
-      startWatchTimer(videoPath, videoRef);
+      startWatchTimer(currentVideoPathRef.current, videoRef);
     }
     
+    // 返回清理函数
     return () => {
-      // 移除事件监听
       player.off('play', handlePlay);
       player.off('pause', handlePause);
       player.off('ended', handleEnded);
       player.off('loadedmetadata', handleLoadedMetadata);
       player.off('error', handleErrorEvent);
       stopWatchTimer();
-      // 不再销毁播放器，VideoPlayer 会处理 dispose
     };
-  }, [videoPath, videoRef, setIsPlaying, setDuration, startWatchTimer, stopWatchTimer, setVideoLoaded]);
+  }, [setIsPlaying, setDuration, setVideoLoaded, startWatchTimer, stopWatchTimer, updateWatchTime, videoRef]);
 
   // 如果没有视频路径，显示提示
   if (!videoPath) {
@@ -138,10 +146,10 @@ const VideoContainer = React.memo(() => {
   return (
     <div style={{ flex: 1, backgroundColor: '#000', position: 'relative' }}>
       <VideoPlayer
-        key={videoPath}
         videoPath={videoPath}
         onTimeUpdate={handleTimeUpdate}
         onSubtitleSelect={handleSubtitleSelect}
+        onPlayerReady={handlePlayerReady}
         videoRef={videoRef}
         subtitles={subtitles}
       />
