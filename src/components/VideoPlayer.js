@@ -271,52 +271,84 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, onP
     
     console.log('【VideoPlayer】subtitles effect, count=', subtitles?.length);
     
-    // 移除旧轨道
-    const tracks = player.textTracks();
-    for (let i = 0; i < tracks.length; i++) { 
-      const t = tracks[i]; 
-      if (t.label === '外挂字幕') { 
-        t.mode = 'disabled'; 
-        while (t.cues.length) { 
-          t.removeCue(t.cues[0]); 
-        } 
+    try {
+      // 移除旧轨道
+      const tracks = player.textTracks();
+      if (tracks) {
+        for (let i = 0; i < tracks.length; i++) { 
+          const t = tracks[i]; 
+          if (t && t.label === '外挂字幕') { 
+            try {
+              t.mode = 'disabled';
+              // 安全地移除cues
+              if (t.cues) {
+                const cues = Array.from(t.cues);
+                cues.forEach(cue => {
+                  try {
+                    t.removeCue(cue);
+                  } catch (e) {
+                    console.warn('移除cue失败:', e);
+                  }
+                });
+              }
+            } catch (e) {
+              console.warn('处理字幕轨道时出错:', e);
+            }
+          }
+        }
       }
-    }
-    
-    // 添加新字幕
-    if (subtitles && subtitles.length > 0) {
-      console.log('【VideoPlayer】添加外挂字幕, 共', subtitles.length, '条');
-      const extTrack = player.addTextTrack('subtitles', '外挂字幕', 'zh'); 
-      extTrack.mode = 'showing';
       
-      subtitles.forEach((cueObj, idx) => {
-        // 支持 parseSync 返回的不同格式
-        let startMs = cueObj.start ?? cueObj.data?.start;
-        let endMs = cueObj.end ?? cueObj.data?.end;
-        let text = cueObj.text ?? cueObj.data?.text;
-        // 验证数据有效性
-        if (!isFinite(startMs) || !isFinite(endMs) || typeof text !== 'string') {
-          console.warn(`跳过第${idx}条无效字幕:`, cueObj);
-          return;
-        }
-        // 毫秒转换为秒
-        const start = startMs / 1000;
-        const end = endMs / 1000;
-        console.log(`添加第${idx}条:{${start}-${end}} ${text}`);
+      // 添加新字幕
+      if (subtitles && subtitles.length > 0) {
+        console.log('【VideoPlayer】添加外挂字幕, 共', subtitles.length, '条');
         try {
-          extTrack.addCue(new window.VTTCue(start, end, text));
+          const extTrack = player.addTextTrack('subtitles', '外挂字幕', 'zh'); 
+          if (extTrack) {
+            extTrack.mode = 'showing';
+            
+            subtitles.forEach((cueObj, idx) => {
+              try {
+                // 支持 parseSync 返回的不同格式
+                let startMs = cueObj.start ?? cueObj.data?.start;
+                let endMs = cueObj.end ?? cueObj.data?.end;
+                let text = cueObj.text ?? cueObj.data?.text;
+                
+                // 验证数据有效性
+                if (!isFinite(startMs) || !isFinite(endMs) || typeof text !== 'string') {
+                  console.warn(`跳过第${idx}条无效字幕:`, cueObj);
+                  return;
+                }
+                
+                // 毫秒转换为秒
+                const start = startMs / 1000;
+                const end = endMs / 1000;
+                console.log(`添加第${idx}条:{${start}-${end}} ${text}`);
+                
+                const cue = new window.VTTCue(start, end, text);
+                extTrack.addCue(cue);
+              } catch (e) {
+                console.error(`添加第${idx}条字幕失败:`, e);
+              }
+            });
+            
+            extTrack.addEventListener('cuechange', () => { 
+              try {
+                const active = extTrack.activeCues; 
+                console.log('Cuechange active:', active?.length); 
+                if (active?.length) {
+                  onSubtitleSelectRef.current(active[0].text); 
+                }
+              } catch (e) {
+                console.warn('处理cuechange事件时出错:', e);
+              }
+            });
+          }
         } catch (e) {
-          console.error('Cue错误:', e);
+          console.error('创建字幕轨道失败:', e);
         }
-      });
-      
-      extTrack.addEventListener('cuechange', () => { 
-        const active = extTrack.activeCues; 
-        console.log('Cuechange active:', active?.length); 
-        if (active?.length) {
-          onSubtitleSelectRef.current(active[0].text); 
-        }
-      });
+      }
+    } catch (e) {
+      console.error('字幕处理过程中出错:', e);
     }
   }, [subtitles]); // 只依赖subtitles
 
