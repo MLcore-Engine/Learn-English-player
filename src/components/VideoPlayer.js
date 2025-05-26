@@ -18,8 +18,7 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, onP
   const onPlayerReadyRef = useRef(onPlayerReady); // 存储播放器就绪回调
   const onSubtitleSelectRef = useRef(onSubtitleSelect); // 存储字幕选择回调
   const [isConverting, setIsConverting] = useState(false);
-  const [conversionProgress, setConversionProgress] = useState(0);
-  const [activeSubtitleText, setActiveSubtitleText] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // 更新refs
   currentVideoPathRef.current = videoPath;
@@ -138,6 +137,18 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, onP
       }
     };
   }, [videoPath]);
+
+  // 监听字幕变化
+  useEffect(() => {
+    setIsPlaying(subtitles && subtitles.length > 0);
+  }, [subtitles]);
+
+  // 将状态传递给父组件
+  useEffect(() => {
+    if (onPlayerReadyRef.current) {
+      onPlayerReadyRef.current(playerRef.current, { isPlaying });
+    }
+  }, [isPlaying]);
 
   // 初始化播放器，只在 videoPath 变化时执行
   useLayoutEffect(() => {
@@ -377,7 +388,6 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, onP
           zIndex: 1000
         }}>
           <div>正在转换视频格式...</div>
-          <div>{Math.round(conversionProgress)}%</div>
         </div>
       )}
       
@@ -396,26 +406,6 @@ const VideoPlayer = React.memo(({ videoPath, onTimeUpdate, onSubtitleSelect, onP
           bottom: 0
         }}
       />
-      
-      {activeSubtitleText && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '60px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            color: '#fff',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            maxWidth: '80%',
-            textAlign: 'center',
-            zIndex: 1000
-          }}
-        >
-          {activeSubtitleText}
-        </div>
-      )}
     </div>
   );
 });

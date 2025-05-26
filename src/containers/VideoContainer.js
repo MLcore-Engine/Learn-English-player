@@ -9,7 +9,7 @@ import { useTimeStats as useTimeStatsHook } from '../hooks/useTimeStats';
  * 视频容器组件
  * 管理视频播放相关的状态和逻辑，渲染VideoPlayer组件
  */
-const VideoContainer = React.memo(() => {
+const VideoContainer = React.memo(({ onPlayerReady }) => {
   const { 
     videoPath, 
     videoRef, 
@@ -18,7 +18,8 @@ const VideoContainer = React.memo(() => {
     setIsPlaying, 
     setSubtitleText,
     setVideoLoaded,
-    subtitleText
+    subtitleText,
+    setPlayer
   } = useVideo();
   
   const { startWatchTimer, stopWatchTimer } = useContextTimeStats();
@@ -61,6 +62,9 @@ const VideoContainer = React.memo(() => {
     // 新视频加载，重置加载状态
     setVideoLoaded(false);
     
+    // 设置 player 实例到 context
+    setPlayer(player);
+    
     // 定义事件处理函数
     const handlePlay = () => {
       console.log('视频播放，开始计时');
@@ -100,6 +104,11 @@ const VideoContainer = React.memo(() => {
       setIsPlaying(true);
       startWatchTimer(currentVideoPathRef.current, videoRef);
     }
+
+    // 调用父组件的 onPlayerReady 回调
+    if (onPlayerReady) {
+      onPlayerReady(player, { hasExternalSubtitles: subtitles && subtitles.length > 0 });
+    }
     
     // 返回清理函数
     return () => {
@@ -110,7 +119,7 @@ const VideoContainer = React.memo(() => {
       player.off('error', handleErrorEvent);
       stopWatchTimer();
     };
-  }, [setIsPlaying, setDuration, setVideoLoaded, startWatchTimer, stopWatchTimer, updateWatchTime, videoRef]);
+  }, [setIsPlaying, setDuration, setVideoLoaded, startWatchTimer, stopWatchTimer, updateWatchTime, videoRef, onPlayerReady, subtitles, setPlayer]);
 
   // 如果没有视频路径，显示提示
   if (!videoPath) {

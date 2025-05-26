@@ -86,14 +86,34 @@ const LearningAssistant = React.memo(({
   const handleToggleHistory = async () => {
     if (!showHistory) {
       if (window.electronAPI && window.electronAPI.getAiQueriesToday) {
-        const records = await window.electronAPI.getAiQueriesToday();
-        setChatHistory(records.map(rec => ({
-          type: 'history',
-          id: rec.id,
-          query: rec.query,
-          text: rec.explanation,
-          created_at: rec.created_at
-        })));
+        try {
+          // 先检查数据库状态
+          const dbStatus = await window.electronAPI.invoke('checkDatabaseStatus');
+          if (!dbStatus.isConnected) {
+            console.error('数据库未连接');
+            alert('数据库未连接，无法获取历史记录');
+            return;
+          }
+
+          const records = await window.electronAPI.getAiQueriesToday();
+          if (!records || records.length === 0) {
+            console.log('没有找到今日的查询记录');
+            setChatHistory([]);
+          } else {
+            console.log('获取到查询记录:', records.length, '条');
+            setChatHistory(records.map(rec => ({
+              type: 'history',
+              id: rec.id,
+              query: rec.query,
+              text: rec.explanation,
+              created_at: rec.created_at
+            })));
+          }
+        } catch (error) {
+          console.error('获取历史记录失败:', error);
+          alert('获取历史记录失败: ' + error.message);
+          return;
+        }
       }
     }
     // 切换历史记录时，隐藏今日总结

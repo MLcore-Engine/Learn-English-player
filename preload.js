@@ -25,7 +25,8 @@ const allowedInvokeChannels = [
   'getVideoServerPort',
   'prepareVideo',
   'cleanupVideoCache',       // 添加新的通道
-  'checkFileExists'          // 添加：检查文件是否存在
+  'checkFileExists',         // 添加：检查文件是否存在
+  'checkDatabaseStatus'      // 添加：检查数据库状态
 ];
 
 const allowedSendChannels = [
@@ -33,7 +34,6 @@ const allowedSendChannels = [
   'getMovies',
   'updateWatchTime',
   'loadSubtitle',
-  'checkDatabaseStatus',  // 新增：检查数据库状态
   'deleteLearningRecord', // 新增：删除学习记录
   'getLearningStats',     // 新增：获取学习统计
   'getWatchingStats'      // 新增：获取观看统计

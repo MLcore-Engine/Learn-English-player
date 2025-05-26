@@ -67,6 +67,7 @@ export const VideoProvider = ({ children }) => {
   });
   
   const videoRef = useRef(null);
+  const playerRef = useRef(null); // 存储 video.js player 实例
 
   // 确保actions是稳定的引用
   const actions = React.useMemo(() => ({
@@ -75,14 +76,16 @@ export const VideoProvider = ({ children }) => {
     setDuration: (duration) => dispatch({ type: 'SET_DURATION', payload: duration }),
     setIsPlaying: (isPlaying) => dispatch({ type: 'SET_IS_PLAYING', payload: isPlaying }),
     setSubtitleText: (text) => dispatch({ type: 'SET_SUBTITLE_TEXT', payload: text }),
-    setVideoLoaded: (loaded) => dispatch({ type: 'SET_VIDEO_LOADED', payload: loaded })
+    setVideoLoaded: (loaded) => dispatch({ type: 'SET_VIDEO_LOADED', payload: loaded }),
+    setPlayer: (player) => { playerRef.current = player; } // 新增：设置 player 实例
   }), []); // 空依赖数组，确保actions只创建一次
 
   return (
     <VideoContext.Provider value={{ 
       ...state, 
       ...actions,
-      videoRef
+      videoRef,
+      playerRef // 新增：暴露 playerRef
     }}>
       {children}
     </VideoContext.Provider>

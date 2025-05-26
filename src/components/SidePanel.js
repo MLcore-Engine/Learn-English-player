@@ -6,12 +6,13 @@ import OCRResultModal from '../components/OCRResultModal';
 import { useTimeStats, useAI, useVideo } from '../contexts/AppContext';
 import { Box } from '@mui/material';
 import aiService from '../utils/aiService';
+import videojs from 'video.js';
 
 /**
  * 侧边面板组件
  * 集成各个子容器组件
  */
-const SidePanel = React.memo(() => {
+const SidePanel = React.memo(({ hasExternalSubtitles }) => {
   const { totalTime, sessionTime, remainingSeconds, formatTime } = useTimeStats();
   const [width, setWidth] = useState(360); // 默认宽度
   const [isDragging, setIsDragging] = useState(false);
@@ -27,7 +28,7 @@ const SidePanel = React.memo(() => {
   const { setSelectedText, setExplanation, setLoading: setAiLoading, addRecord } = useAI();
 
   // 视频加载状态从 context 获取
-  const { isLoaded: isVideoLoaded } = useVideo();
+  const { isLoaded: isVideoLoaded, videoRef, playerRef } = useVideo();
 
   // 从localStorage加载保存的宽度
   useEffect(() => {
@@ -80,17 +81,37 @@ const SidePanel = React.memo(() => {
   
   // OCRContainer的回调，识别完成后弹窗
   const handleOCRRecognize = useCallback((recognizedText) => {
-    // 如果收到的是 loading 文本，只更新 loading 状态
+    // 如果有外挂字幕，直接使用当前字幕文本
+    if (hasExternalSubtitles && playerRef.current) {
+      try {
+        const player = playerRef.current;
+        if (player && player.textTracks) {
+          const tracks = player.textTracks();
+          for (let i = 0; i < tracks.length; i++) {
+            const track = tracks[i];
+            if (track.label === '外挂字幕' && track.activeCues && track.activeCues.length > 0) {
+              const text = track.activeCues[0].text;
+              setOcrResult(text);
+              setOcrModalOpen(true);
+              return;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('获取字幕轨道失败:', error);
+      }
+    }
+
+    // 如果没有外挂字幕或获取失败，使用OCR识别
     if (recognizedText === '识别中...') {
       setOcrLoading(true);
       return;
     }
     
-    // 否则更新结果并显示弹窗
     setOcrResult(recognizedText);
     setOcrModalOpen(true);
     setOcrLoading(false);
-  }, []);
+  }, [hasExternalSubtitles, playerRef]);
 
   // 解释按钮回调
   const handleExplain = useCallback(async (lang, selectedText) => {
@@ -169,7 +190,12 @@ const SidePanel = React.memo(() => {
       }}>
         <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', gap: 2 }}>
           <Box sx={{ flex: 1, width: '48%' }}>
-            <OCRContainer onRecognize={handleOCRRecognize} isLoading={ocrLoading} videoReady={isVideoLoaded} />
+            <OCRContainer 
+              onRecognize={handleOCRRecognize} 
+              isLoading={ocrLoading} 
+              videoReady={isVideoLoaded}
+              hasExternalSubtitles={hasExternalSubtitles}
+            />
           </Box>
           <Box sx={{ flex: 4, display: 'flex', justifyContent: 'flex-end' }}>
             <TimeStats {...timeStatsProps} smallFont horizontal/>

@@ -6,7 +6,7 @@ import { recognizeSubtitleFromVideo } from '../utils/ocr';
  * 字幕OCR组件
  * 提供字幕识别功能
  */
-const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoading }) => {
+const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoading, hasExternalSubtitles }) => {
   // 如果外部没有提供loading状态，使用内部的
   const [internalLoading, setInternalLoading] = useState(false);
   const loading = externalLoading !== undefined ? externalLoading : internalLoading;
@@ -75,14 +75,17 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
           opacity: (loading || !isVideoReady) ? 0.7 : 1
         }}
       >
-        {loading ? '识别中...' : !isVideoReady ? '视频加载...' : '识别字幕'}
+        {loading ? '处理中...' : 
+         !isVideoReady ? '视频加载...' : 
+         hasExternalSubtitles ? '提取字幕' : '识别字幕'}
       </button>
     </div>
   );
 }, (prevProps, nextProps) => {
   // 只有在关键props变化时才重新渲染
   return prevProps.videoRef === nextProps.videoRef &&
-         prevProps.isLoading === nextProps.isLoading;
+         prevProps.isLoading === nextProps.isLoading &&
+         prevProps.hasExternalSubtitles === nextProps.hasExternalSubtitles;
   // 不比较onRecognize，它应该是一个稳定的回调函数
 });
 

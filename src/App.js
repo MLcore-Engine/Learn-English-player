@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import 'video.js/dist/video-js.css';
 import { AppProvider } from './contexts/AppContext';
 import VideoContainer from './containers/VideoContainer';
@@ -24,6 +24,16 @@ const AppContent = () => {
   
   // 使用IPC钩子处理与主进程通信
   useElectronIPC();
+
+  // 外挂字幕状态
+  const [hasExternalSubtitles, setHasExternalSubtitles] = useState(false);
+
+  // 处理播放器就绪回调
+  const handlePlayerReady = useCallback((player, info) => {
+    if (info && typeof info.hasExternalSubtitles === 'boolean') {
+      setHasExternalSubtitles(info.hasExternalSubtitles);
+    }
+  }, []);
   
   // API密钥设置属性
   const apiKeyProps = {
@@ -50,10 +60,10 @@ const AppContent = () => {
         overflow: 'hidden'
       }}>
         {/* 视频区域 */}
-        <VideoContainer />
+        <VideoContainer onPlayerReady={handlePlayerReady} />
         
         {/* 侧边面板 */}
-        <SidePanel />
+        <SidePanel hasExternalSubtitles={hasExternalSubtitles} />
       </div>
     </>
   );
@@ -66,7 +76,7 @@ const AppContent = () => {
 function App() {
   // 设置页面标题
   useEffect(() => {
-    document.title = "learn-english-player";
+    document.title = "lep";
   }, []);
 
   return (

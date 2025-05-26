@@ -148,6 +148,16 @@ console.log('应用路径信息:', {
   lastVideoDir
 });
 
+// 确保数据目录存在
+try {
+  if (!fs.existsSync(DATA_PATH)) {
+    fs.mkdirSync(DATA_PATH, { recursive: true });
+    console.log('创建数据目录:', DATA_PATH);
+  }
+} catch (error) {
+  console.error('创建数据目录失败:', error);
+}
+
 // 配置日志
 log.transports.file.level = 'info';
 autoUpdater.logger = log;
@@ -283,6 +293,8 @@ app.whenReady().then(async () => {
   // 初始化数据库连接，添加错误处理
   try {
     db = new Database(DB_PATH);
+    console.log('数据库连接成功:', DB_PATH);
+    
     // 创建global_usage表，记录全局使用时间
     console.log('创建global_usage表');
     db.exec(`
@@ -807,30 +819,29 @@ ipcMain.handle('dialog:openFile', async (event, options) => {
 });
 
 // 添加新的IPC处理函数，用于检查数据库状态
-ipcMain.on('checkDatabaseStatus', (event) => {
+ipcMain.handle('checkDatabaseStatus', (event) => {
   console.log('【主进程】收到检查数据库状态请求');
   
   try {
     if (!db) {
       console.log('【主进程】数据库未初始化');
-      mainWindow.webContents.send('databaseStatus', { isConnected: false });
-      return;
+      return { isConnected: false, error: '数据库未初始化' };
     }
     
     // 尝试执行简单查询以确认数据库状态正常
-    const result = db.prepare('SELECT COUNT(*) as count FROM watch_time').get();
+    const result = db.prepare('SELECT COUNT(*) as count FROM ai_queries').get();
     console.log('【主进程】数据库状态检查结果:', result);
     
-    mainWindow.webContents.send('databaseStatus', { 
+    return { 
       isConnected: true,
       recordCount: result.count
-    });
+    };
   } catch (error) {
     console.error('【主进程】检查数据库状态失败:', error);
-    mainWindow.webContents.send('databaseStatus', { 
+    return { 
       isConnected: false,
       error: error.message
-    });
+    };
   }
 });
 
