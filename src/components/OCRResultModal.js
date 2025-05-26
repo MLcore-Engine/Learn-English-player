@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dictionaryService from '../utils/dictionaryService';
 
 const OCRResultModal = React.memo(({ isOpen, result, onExplain, onClose, style, isLoading }) => {
   const [dictResult, setDictResult] = useState(null);
   const [dictLoading, setDictLoading] = useState(false);
+
+  // 当模态框关闭或结果更新时，重置字典查询结果
+  useEffect(() => {
+    if (!isOpen || result !== undefined) {
+      setDictResult(null);
+    }
+  }, [isOpen, result]);
 
   if (!isOpen) return null;
 
@@ -21,13 +28,59 @@ const OCRResultModal = React.memo(({ isOpen, result, onExplain, onClose, style, 
     setDictLoading(true);
     try {
       const result = await dictionaryService.lookup(txt);
-      setDictResult(result);
+      if (result) {
+        // 格式化字典查询结果
+        const formattedResult = formatDictionaryResult(result);
+        setDictResult(formattedResult);
+        
+        // 保存到数据库
+        await window.electronAPI.invoke('saveAiQuery', {
+          query: txt,
+          explanation: formattedResult,
+          timestamp: new Date().toISOString()
+        });
+      }
     } catch (error) {
       console.error('字典查询失败:', error);
       alert('字典查询失败: ' + error.message);
     } finally {
       setDictLoading(false);
     }
+  };
+
+  // 格式化字典查询结果
+  const formatDictionaryResult = (result) => {
+    let formatted = `**${result.word}** ${result.phonetic}\n\n`;
+    
+    // 按词性分组显示释义
+    const groupedDefs = result.definitions.reduce((acc, def) => {
+      if (!acc[def.type]) acc[def.type] = [];
+      acc[def.type].push(def);
+      return acc;
+    }, {});
+
+    Object.entries(groupedDefs).forEach(([type, defs]) => {
+      formatted += `**${type.toUpperCase()}**\n`;
+      defs.forEach(def => {
+        formatted += `${def.english}\n${def.chinese}\n\n`;
+      });
+    });
+
+    // 添加同义词
+    if (result.synonyms && result.synonyms.length > 0) {
+      formatted += '**同义词**\n';
+      result.synonyms.forEach(syn => {
+        formatted += `${syn.english} - ${syn.chinese}\n`;
+      });
+    }
+
+    return formatted;
+  };
+
+  // 处理关闭按钮点击
+  const handleClose = () => {
+    setDictResult(null);
+    onClose();
   };
 
   return (
@@ -46,7 +99,9 @@ const OCRResultModal = React.memo(({ isOpen, result, onExplain, onClose, style, 
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'stretch'
+        alignItems: 'stretch',
+        maxHeight: 'calc(100vh - 200px)',
+        position: 'relative'
       }}
     >
       <div
@@ -57,57 +112,49 @@ const OCRResultModal = React.memo(({ isOpen, result, onExplain, onClose, style, 
           wordBreak: 'break-all',
           whiteSpace: 'pre-wrap',
           overflowWrap: 'break-word',
-          overflow: 'hidden',
-          maxWidth: '100%'
+          overflow: 'auto',
+          maxHeight: '40vh',
+          paddingRight: 8
         }}
       >
         {result}
       </div>
 
-      {/* 字典查询结果 */}
+      {/* 显示字典查询结果 */}
       {dictResult && (
-        <div style={{ 
-          marginBottom: 12,
-          padding: 12,
-          background: '#f5f5f5',
-          borderRadius: 4,
-          fontSize: 14
-        }}>
-          <div style={{ marginBottom: 8 }}>
-            <strong>{dictResult.word}</strong> {dictResult.phonetic}
-          </div>
-          
-          {Object.entries(dictResult.definitions.reduce((acc, def) => {
-            if (!acc[def.type]) acc[def.type] = [];
-            acc[def.type].push(def);
-            return acc;
-          }, {})).map(([type, defs]) => (
-            <div key={type} style={{ marginBottom: 8 }}>
-              <div style={{ color: '#666', marginBottom: 4 }}>{type.toUpperCase()}</div>
-              {defs.map((def, idx) => (
-                <div key={idx} style={{ marginLeft: 12, marginBottom: 4 }}>
-                  <div>{def.english}</div>
-                  <div style={{ color: '#666' }}>{def.chinese}</div>
-                </div>
-              ))}
-            </div>
-          ))}
-          
-          {dictResult.synonyms && dictResult.synonyms.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ color: '#666', marginBottom: 4 }}>同义词</div>
-              {dictResult.synonyms.map((syn, idx) => (
-                <div key={idx} style={{ marginLeft: 12, marginBottom: 4 }}>
-                  <div>{syn.english}</div>
-                  <div style={{ color: '#666' }}>{syn.chinese}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            background: '#f5f5f5',
+            borderRadius: 8,
+            fontSize: 14,
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap',
+            overflow: 'auto',
+            maxHeight: '30vh',
+            paddingRight: 8
+          }}
+          dangerouslySetInnerHTML={{
+            __html: dictResult
+              .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+              .replace(/\n/g, '<br/>')
+          }}
+        />
       )}
 
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+      <div 
+        style={{ 
+          display: 'flex', 
+          gap: 8, 
+          justifyContent: 'space-between',
+          position: 'sticky',
+          bottom: 0,
+          background: '#fff',
+          paddingTop: 8,
+          borderTop: '1px solid #eee'
+        }}
+      >
         <button 
           style={{ 
             flex: 1,
@@ -209,7 +256,7 @@ const OCRResultModal = React.memo(({ isOpen, result, onExplain, onClose, style, 
             height: '28px',
             lineHeight: '20px'
           }} 
-          onClick={onClose}
+          onClick={handleClose}
           disabled={isLoading}
         >
           关闭

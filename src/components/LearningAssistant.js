@@ -216,8 +216,9 @@ const LearningAssistant = React.memo(({
     return (
       <Box sx={{ p: 2 }}>
         {parts.map((part, index) => {
-          // 检查是否是标题行（包含数字和点）
+          // 检查是否是标题行（包含数字和点）或字典查询结果（包含音标）
           const isTitle = /^\d+\./.test(part);
+          const isDictResult = part.includes('/') && part.includes('**');
           
           return (
             <Box 
@@ -229,11 +230,11 @@ const LearningAssistant = React.memo(({
               }}
             >
               <Typography
-                variant={isTitle ? "subtitle1" : "body2"}
+                variant={isTitle || isDictResult ? "subtitle1" : "body2"}
                 component="div"
                 sx={{ 
                   whiteSpace: 'pre-wrap',
-                  fontSize: isTitle ? '1.1rem' : '1rem',
+                  fontSize: isTitle || isDictResult ? '1.1rem' : '1rem',
                   lineHeight: 1.6,
                   '& strong': {
                     color: 'primary.main',
