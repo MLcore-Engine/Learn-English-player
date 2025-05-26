@@ -26,7 +26,8 @@ const allowedInvokeChannels = [
   'prepareVideo',
   'cleanupVideoCache',       // 添加新的通道
   'checkFileExists',         // 添加：检查文件是否存在
-  'checkDatabaseStatus'      // 添加：检查数据库状态
+  'checkDatabaseStatus',     // 添加：检查数据库状态
+  'lookupWord'              // 添加：字典查询通道
 ];
 
 const allowedSendChannels = [
@@ -224,7 +225,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 清理视频缓存
   cleanupVideoCache: () => ipcRenderer.invoke('cleanupVideoCache'),
   // 检查文件是否存在
-  checkFileExists: (filePath) => ipcRenderer.invoke('checkFileExists', filePath)
+  checkFileExists: (filePath) => ipcRenderer.invoke('checkFileExists', filePath),
+  
+  // 字典查询
+  lookupWord: (word) => ipcRenderer.invoke('lookupWord', word)
 });
 
 console.log('--- Preload script: END ---'); 

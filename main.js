@@ -270,8 +270,45 @@ async function cleanupCache() {
 // 定期清理缓存
 setInterval(cleanupCache, CACHE_CONFIG.cleanupInterval);
 
+// 添加字典文件路径
+const DICT_PATH = path.join(__dirname, 'resources', 'dictionary', '美国传统词典双解.mdx');
+
+// 添加字典实例缓存
+let dictInstance = null;
+
+// 检查字典文件是否存在
+function checkDictionaryFile() {
+  try {
+    if (!fs.existsSync(DICT_PATH)) {
+      console.error('字典文件不存在:', DICT_PATH);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('检查字典文件失败:', error);
+    return false;
+  }
+}
+
+// 获取字典实例
+function getDictionaryInstance() {
+  if (!dictInstance) {
+    const { MDX } = require('js-mdict');
+    dictInstance = new MDX(DICT_PATH);
+  }
+  return dictInstance;
+}
+
 // 应用启动时创建窗口
 app.whenReady().then(async () => {
+  // 检查字典文件
+  if (!checkDictionaryFile()) {
+    dialog.showErrorBox(
+      '字典文件缺失',
+      '未找到字典文件，请确保 resources/dictionary/美国传统词典双解.mdx 文件存在。'
+    );
+  }
+
   // 注册 app:// 协议，映射到 videos 目录
   protocol.registerFileProtocol('app', (request, callback) => {
     const urlPath = request.url.replace('app:///', '');
@@ -1301,6 +1338,30 @@ ipcMain.handle('checkFileExists', async (event, filePath) => {
     return true;
   } catch {
     return false;
+  }
+});
+
+// 添加字典查询的IPC处理
+ipcMain.handle('lookupWord', async (event, word) => {
+  try {
+    if (!checkDictionaryFile()) {
+      throw new Error('字典文件不存在');
+    }
+    
+    const dict = getDictionaryInstance();
+    const def = dict.lookup(word);
+    
+    if (!def || !def.definition) {
+      return { success: false, error: '未找到该单词' };
+    }
+    
+    return {
+      success: true,
+      data: def.definition
+    };
+  } catch (error) {
+    console.error('字典查询失败:', error);
+    return { success: false, error: error.message };
   }
 });
 
