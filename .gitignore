@@ -19,3 +19,6 @@ yarn-error.log*
 .env.production.local
 docs/architecture.md
 resources/dictionary
+
+models/
+public/models/
