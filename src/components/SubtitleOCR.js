@@ -16,8 +16,7 @@ const SubtitleOCR = React.memo(({ videoRef, onRecognize, isLoading: externalLoad
   const isVideoReady = duration > 0;
 
   const handleRecognize = async () => {
-    console.log('SubtitleOCR handleRecognize invoked, videoRef.current:', videoRef.current);
-    
+    console.log('handleRecognize invoked, videoRef.current:', videoRef.current);
     // 检查视频是否已加载
     if (!isVideoReady) {
       console.warn('SubtitleOCR: 视频未加载，无法进行OCR识别');

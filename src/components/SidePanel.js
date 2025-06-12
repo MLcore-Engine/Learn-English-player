@@ -6,7 +6,6 @@ import OCRResultModal from '../components/OCRResultModal';
 import { useTimeStats, useAI, useVideo } from '../contexts/AppContext';
 import { Box } from '@mui/material';
 import aiService from '../utils/aiService';
-import videojs from 'video.js';
 
 /**
  * 侧边面板组件
@@ -28,7 +27,7 @@ const SidePanel = React.memo(({ hasExternalSubtitles }) => {
   const { setSelectedText, setExplanation, setLoading: setAiLoading, addRecord } = useAI();
 
   // 视频加载状态从 context 获取
-  const { isLoaded: isVideoLoaded, videoRef, playerRef } = useVideo();
+  const { isLoaded: isVideoLoaded,  playerRef } = useVideo();
 
   // 从localStorage加载保存的宽度
   useEffect(() => {
