@@ -93,6 +93,8 @@ export const apiKeyReducer = (state, action) => {
   switch (action.type) {
     case 'SET_API_KEY':
       return { ...state, apiKey: action.payload };
+    case 'SET_MODEL_URL':
+      return { ...state, modelUrl: action.payload };
     case 'SET_SHOW_INPUT':
       return { ...state, showInput: action.payload };
     case 'SET_STATUS':

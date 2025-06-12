@@ -79,14 +79,22 @@ function decrypt(encryptedHex) {
 }
 // --- 结束加密配置 ---
 
-ipcMain.handle('saveApiKey', (event, apiKey) => {
+ipcMain.handle('saveApiKey', (event, { apiKey, modelUrl }) => {
   console.log('【主进程】收到 saveApiKey 请求');
-  if (!apiKey) {
-      console.log('【主进程】API Key 为空，清除存储');
-      store.delete('encryptedApiKey'); // 如果传入空值，则删除 Key
-      return { success: true, message: 'API Key 已清除' };
-  }
   try {
+    // 保存 Model URL
+    if (modelUrl) {
+      store.set('modelUrl', modelUrl);
+      console.log('【主进程】Model URL 已保存');
+    }
+
+    // 处理 API Key
+    if (!apiKey) {
+      console.log('【主进程】API Key 为空，清除存储');
+      store.delete('encryptedApiKey');
+      return { success: true, message: 'API Key 已清除' };
+    }
+
     const encryptedApiKey = encrypt(apiKey);
     if (encryptedApiKey) {
       store.set('encryptedApiKey', encryptedApiKey);
@@ -107,20 +115,20 @@ ipcMain.handle('getApiKey', (event) => {
   console.log('【主进程】收到 getApiKey 请求');
   try {
     const encryptedApiKey = store.get('encryptedApiKey');
+    const modelUrl = store.get('modelUrl') || 'http://58.211.207.202:20000/api/chat'; // 默认值
     if (encryptedApiKey) {
       const decryptedApiKey = decrypt(encryptedApiKey);
       if (decryptedApiKey !== null) {
         console.log('【主进程】成功解密并返回 API Key');
-        return { success: true, apiKey: decryptedApiKey };
+        return { success: true, apiKey: decryptedApiKey, modelUrl };
       } else {
          console.error('【主进程】解密 API Key 失败');
-         // 如果解密失败，可能意味着密钥已更改或数据损坏，最好清除它
          store.delete('encryptedApiKey');
-         return { success: false, error: '解密失败，Key 已被清除' };
+         return { success: false, error: '解密失败，Key 已被清除', modelUrl };
       }
     } else {
       console.log('【主进程】未找到已存储的 API Key');
-      return { success: true, apiKey: null }; // 没有存储 Key 不算错误
+      return { success: true, apiKey: null, modelUrl };
     }
   } catch (error) {
     console.error('【主进程】获取 API Key 时出错:', error);
@@ -301,94 +309,97 @@ function getDictionaryInstance() {
 
 // 应用启动时创建窗口
 app.whenReady().then(async () => {
-  // 检查字典文件
-  if (!checkDictionaryFile()) {
-    dialog.showErrorBox(
-      '字典文件缺失',
-      '未找到字典文件，请确保 resources/dictionary/美国传统词典双解.mdx 文件存在。'
-    );
-  }
-
-  // 注册 app:// 协议，映射到 videos 目录
-  protocol.registerFileProtocol('app', (request, callback) => {
-    const urlPath = request.url.replace('app:///', '');
-    const decodedPath = decodeURIComponent(urlPath);
-    const baseDir = path.join(__dirname, 'videos');
-    const filePath = path.join(baseDir, decodedPath);
-    // 安全检查，防止越权访问
-    if (!filePath.startsWith(baseDir) || !fs.existsSync(filePath)) {
-      return callback({ error: -6 });
-    }
-    return callback({ path: filePath });
-  });
-
   // 确保数据目录存在
   if (!fs.existsSync(DATA_PATH)) {
     fs.mkdirSync(DATA_PATH, { recursive: true });
+    console.log('创建数据目录');
   }
   
   // 初始化数据库连接，添加错误处理
   try {
+    // 检查数据库文件是否存在
+    const dbExists = fs.existsSync(DB_PATH);
+    
+    // 连接数据库
     db = new Database(DB_PATH);
     console.log('数据库连接成功:', DB_PATH);
     
-    // 创建global_usage表，记录全局使用时间
-    console.log('创建global_usage表');
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS global_usage (
-        id INTEGER PRIMARY KEY CHECK(id = 1),
-        total_time INTEGER NOT NULL DEFAULT 0
-      );
-    `);
-    // 创建 daily_usage 表，按日期记录当日会话时长
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS daily_usage (
-        date TEXT PRIMARY KEY,
-        session_time INTEGER NOT NULL DEFAULT 0
-      );
-    `);
-    // 创建 video_progress 表，保存每个视频的播放进度
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS video_progress (
-        video_id TEXT PRIMARY KEY,
-        last_position INTEGER,
-        last_watched TEXT
-      );
-    `);
-    // 创建 learning_records 表，保存学习记录
-    console.log('创建learning_records表');
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS learning_records (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        video_id TEXT,
-        subtitle_id INTEGER,
-        content TEXT,
-        translation TEXT,
-        note TEXT,
-        created_at TEXT
-      );
-    `);
-    // 创建 ai_queries 表，用于存储用户的AI查询记录
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS ai_queries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        query TEXT NOT NULL,
-        explanation TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-    `);
-    // 创建查询历史记录表
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS query_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        query_text TEXT NOT NULL,
-        response_text TEXT,
-        query_type TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        video_id TEXT,
-        FOREIGN KEY (video_id) REFERENCES video_progress(video_id)
-      );
-    `);
+    // 只在数据库不存在时创建表
+    if (!dbExists) {
+      console.log('初始化新数据库...');
+      
+      // 创建global_usage表，记录全局使用时间
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS global_usage (
+          id INTEGER PRIMARY KEY CHECK(id = 1),
+          total_time INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      // 创建 daily_usage 表，按日期记录当日会话时长
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS daily_usage (
+          date TEXT PRIMARY KEY,
+          session_time INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      // 创建 video_progress 表，保存每个视频的播放进度
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS video_progress (
+          video_id TEXT PRIMARY KEY,
+          last_position INTEGER,
+          last_watched TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      // 创建 learning_records 表，保存学习记录
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS learning_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          video_id TEXT,
+          subtitle_id INTEGER,
+          content TEXT,
+          translation TEXT,
+          note TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      // 创建 ai_queries 表，用于存储用户的AI查询记录
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS ai_queries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          query TEXT NOT NULL,
+          explanation TEXT NOT NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      
+      // 创建查询历史记录表
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS query_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          query_text TEXT NOT NULL,
+          response_text TEXT,
+          query_type TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          video_id TEXT,
+          FOREIGN KEY (video_id) REFERENCES video_progress(video_id)
+        );
+      `);
+      
+      console.log('数据库表创建完成');
+    }
     
     // 验证表是否成功创建
     try {
@@ -752,37 +763,61 @@ ipcMain.on('loadSubtitle', (event, { subtitlePath }) => {
 // 更新时长统计
 ipcMain.on('updateWatchTime', (event, { videoId, totalTime, sessionTime, currentPosition }) => {
   console.log('【主进程】收到updateWatchTime请求:', { videoId, totalTime, sessionTime, currentPosition });
-  if (!db) return console.error('数据库未初始化，无法更新观看时长');
-  const now = new Date().toISOString();
-
-  // 全局累计总观看时长
-  const gu = db.prepare('SELECT total_time FROM global_usage WHERE id = 1').get();
-  if (gu) {
-    db.prepare('UPDATE global_usage SET total_time = ? WHERE id = 1').run(totalTime);
-  } else {
-    db.prepare('INSERT INTO global_usage(id, total_time) VALUES(1, ?)').run(totalTime);
+  if (!db) {
+    console.error('数据库未初始化，无法更新观看时长');
+    mainWindow.webContents.send('watchTimeUpdated', { success: false, error: '数据库未初始化' });
+    return;
   }
 
-  // 当日会话时长
-  const today = now.slice(0, 10);
-  const du = db.prepare('SELECT session_time FROM daily_usage WHERE date = ?').get(today);
-  if (du) {
-    db.prepare('UPDATE daily_usage SET session_time = ? WHERE date = ?').run(sessionTime, today);
-  } else {
-    db.prepare('INSERT INTO daily_usage(date, session_time) VALUES(?, ?)').run(today, sessionTime);
-  }
+  try {
+    // 使用事务确保数据一致性
+    db.transaction(() => {
+      const now = new Date().toISOString();
+      const today = now.slice(0, 10);
 
-  // 单视频播放进度
-  const vp = db.prepare('SELECT last_position FROM video_progress WHERE video_id = ?').get(videoId);
-  if (vp) {
-    db.prepare('UPDATE video_progress SET last_position = ?, last_watched = ? WHERE video_id = ?')
-      .run(currentPosition, now, videoId);
-  } else {
-    db.prepare('INSERT INTO video_progress(video_id, last_position, last_watched) VALUES(?, ?, ?)')
-      .run(videoId, currentPosition, now);
-  }
+      // 1. 更新全局累计总观看时长
+      const gu = db.prepare('SELECT total_time FROM global_usage WHERE id = 1').get();
+      if (gu) {
+        db.prepare('UPDATE global_usage SET total_time = ?, updated_at = ? WHERE id = 1')
+          .run(totalTime, now);
+      } else {
+        db.prepare('INSERT INTO global_usage(id, total_time, created_at, updated_at) VALUES(1, ?, ?, ?)')
+          .run(totalTime, now, now);
+      }
 
-  mainWindow.webContents.send('watchTimeUpdated', { success: true });
+      // 2. 更新当日会话时长
+      const du = db.prepare('SELECT session_time FROM daily_usage WHERE date = ?').get(today);
+      if (du) {
+        db.prepare('UPDATE daily_usage SET session_time = ?, updated_at = ? WHERE date = ?')
+          .run(sessionTime, now, today);
+      } else {
+        db.prepare('INSERT INTO daily_usage(date, session_time, created_at, updated_at) VALUES(?, ?, ?, ?)')
+          .run(today, sessionTime, now, now);
+      }
+
+      // 3. 更新单视频播放进度
+      const vp = db.prepare('SELECT last_position FROM video_progress WHERE video_id = ?').get(videoId);
+      if (vp) {
+        db.prepare('UPDATE video_progress SET last_position = ?, last_watched = ?, updated_at = ? WHERE video_id = ?')
+          .run(currentPosition, now, now, videoId);
+      } else {
+        db.prepare('INSERT INTO video_progress(video_id, last_position, last_watched, created_at, updated_at) VALUES(?, ?, ?, ?, ?)')
+          .run(videoId, currentPosition, now, now, now);
+      }
+    })();
+
+    // 发送成功响应
+    mainWindow.webContents.send('watchTimeUpdated', { 
+      success: true,
+      data: { totalTime, sessionTime, currentPosition }
+    });
+  } catch (error) {
+    console.error('【主进程】更新观看时长失败:', error);
+    mainWindow.webContents.send('watchTimeUpdated', { 
+      success: false, 
+      error: error.message 
+    });
+  }
 });
 
 // 获取视频的观看时长记录

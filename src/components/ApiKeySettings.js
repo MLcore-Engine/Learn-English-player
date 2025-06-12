@@ -2,9 +2,11 @@ import React from 'react';
 
 const ApiKeySettings = ({ 
   isVisible, 
-  apiKey, 
+  apiKey,
+  modelUrl,
   storedApiKeyStatus, 
-  onApiKeyChange, 
+  onApiKeyChange,
+  onModelUrlChange,
   onSave, 
   onCancel 
 }) => {
@@ -23,15 +25,26 @@ const ApiKeySettings = ({
       zIndex: 2000, 
       boxShadow: '0 5px 15px rgba(0,0,0,0.3)'
     }}>
-      <h4>设置大模型 API Key</h4>
+      <h5>设置API Key</h5>
       <p>当前状态: {storedApiKeyStatus}</p>
-      <input
-        type="password"
-        value={apiKey}
-        onChange={(e) => onApiKeyChange(e.target.value)}
-        placeholder="输入新的 API Key (留空则清除)"
-        style={{ width: '300px', marginRight: '10px', padding: '5px' }}
-      />
+      <div style={{ marginBottom: '15px' }}>
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => onApiKeyChange(e.target.value)}
+          placeholder="输入新的 API Key (留空则清除)"
+          style={{ width: '300px', marginRight: '10px', padding: '5px' }}
+        />
+      </div>
+      <div style={{ marginBottom: '15px' }}>
+        <input
+          type="text"
+          value={modelUrl}
+          onChange={(e) => onModelUrlChange(e.target.value)}
+          placeholder="输入大模型 API URL"
+          style={{ width: '300px', marginRight: '10px', padding: '5px' }}
+        />
+      </div>
       <button onClick={onSave}>保存</button>
       <button onClick={onCancel} style={{ marginLeft: '10px' }}>取消</button>
       <p style={{ fontSize: '0.8em', marginTop: '10px', color: '#aaa' }}>

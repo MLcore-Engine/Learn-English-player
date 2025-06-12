@@ -14,6 +14,34 @@ const AIContext = createContext();
 const OCRContext = createContext();
 const ApiKeyContext = createContext();
 
+// 创建错误处理上下文
+const ErrorContext = createContext();
+
+// 错误处理reducer
+const errorReducer = (state, action) => {
+  switch (action.type) {
+    case 'SET_ERROR':
+      return {
+        ...state,
+        error: action.payload,
+        showError: true
+      };
+    case 'HIDE_ERROR':
+      return {
+        ...state,
+        showError: false
+      };
+    case 'CLEAR_ERROR':
+      return {
+        ...state,
+        error: null,
+        showError: false
+      };
+    default:
+      return state;
+  }
+};
+
 // 导出自定义钩子，便于组件使用
 export const useVideo = () => {
   const context = useContext(VideoContext);
@@ -51,6 +79,35 @@ export const useApiKey = () => {
   const context = useContext(ApiKeyContext);
   if (!context) {
     throw new Error('useApiKey must be used within a ApiKeyProvider');
+  }
+  return context;
+};
+
+// 错误处理Provider
+export const ErrorProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(errorReducer, {
+    error: null,
+    showError: false
+  });
+
+  const actions = {
+    setError: (error) => dispatch({ type: 'SET_ERROR', payload: error }),
+    hideError: () => dispatch({ type: 'HIDE_ERROR' }),
+    clearError: () => dispatch({ type: 'CLEAR_ERROR' })
+  };
+
+  return (
+    <ErrorContext.Provider value={{ ...state, ...actions }}>
+      {children}
+    </ErrorContext.Provider>
+  );
+};
+
+// 错误处理Hook
+export const useError = () => {
+  const context = useContext(ErrorContext);
+  if (!context) {
+    throw new Error('useError must be used within an ErrorProvider');
   }
   return context;
 };
@@ -249,6 +306,7 @@ export const OCRProvider = ({ children }) => {
 export const ApiKeyProvider = ({ children }) => {
   const [state, dispatch] = useReducer(apiKeyReducer, {
     apiKey: '',
+    modelUrl: 'http://58.211.207.202:20000/api/chat', // 默认值
     showInput: false,
     status: '正在加载...'
   });
@@ -256,6 +314,9 @@ export const ApiKeyProvider = ({ children }) => {
   const actions = {
     setApiKey: (apiKey) => {
       dispatch({ type: 'SET_API_KEY', payload: apiKey });
+    },
+    setModelUrl: (modelUrl) => {
+      dispatch({ type: 'SET_MODEL_URL', payload: modelUrl });
     },
     setShowInput: (show) => {
       dispatch({ type: 'SET_SHOW_INPUT', payload: show });
@@ -275,16 +336,18 @@ export const ApiKeyProvider = ({ children }) => {
 // 组合所有Provider的便捷组件
 export const AppProvider = ({ children }) => {
   return (
-    <VideoProvider>
-      <TimeStatsProvider>
-        <AIProvider>
-          <OCRProvider>
-            <ApiKeyProvider>
-              {children}
-            </ApiKeyProvider>
-          </OCRProvider>
-        </AIProvider>
-      </TimeStatsProvider>
-    </VideoProvider>
+    <ErrorProvider>
+      <VideoProvider>
+        <TimeStatsProvider>
+          <AIProvider>
+            <OCRProvider>
+              <ApiKeyProvider>
+                {children}
+              </ApiKeyProvider>
+            </OCRProvider>
+          </AIProvider>
+        </TimeStatsProvider>
+      </VideoProvider>
+    </ErrorProvider>
   );
 };

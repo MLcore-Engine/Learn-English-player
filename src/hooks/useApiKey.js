@@ -12,10 +12,12 @@ const CACHE_DURATION = 30000; // 30秒
 export const useApiKey = () => {
   // 使用来自Context的状态和actions
   const { 
-    apiKey, 
+    apiKey,
+    modelUrl, // 新增：模型 URL
     showInput, 
     status, 
-    setApiKey, 
+    setApiKey,
+    setModelUrl, // 新增：设置模型 URL
     setShowInput, 
     setStatus 
   } = useApiKeyContext();
@@ -42,6 +44,7 @@ export const useApiKey = () => {
     // 如果缓存有效，且不是强制刷新，则使用缓存
     if (!force && cache.cachedResult && (now - cache.lastFetch < CACHE_DURATION)) {
       setStatus(cache.cachedResult.status);
+      setModelUrl(cache.cachedResult.modelUrl);
       return;
     }
 
@@ -55,17 +58,22 @@ export const useApiKey = () => {
       if (result.success) {
         const newStatus = result.apiKey ? '已设置' : '未设置';
         setStatus(newStatus);
+        setModelUrl(result.modelUrl);
         
         // 更新缓存
         cache.cachedResult = {
           status: newStatus,
-          apiKey: result.apiKey
+          apiKey: result.apiKey,
+          modelUrl: result.modelUrl
         };
         cache.lastFetch = now;
         
         // 设置到aiService中
         if (aiService && typeof aiService.setApiKey === 'function') {
           aiService.setApiKey(result.apiKey || '');
+          if (result.modelUrl && typeof aiService.setModelUrl === 'function') {
+            aiService.setModelUrl(result.modelUrl);
+          }
         }
       } else {
         setStatus(`获取失败: ${result.error}`);
@@ -80,16 +88,16 @@ export const useApiKey = () => {
     } finally {
       cache.isFetching = false;
     }
-  }, []); // 移除 setStatus 依赖 
+  }, [setStatus, setModelUrl]);
 
   // 保存API Key的函数
   const saveApiKey = useCallback(async () => {
     if (!window.electronAPI) return;
     
     try {
-      const result = await window.electronAPI.invoke('saveApiKey', apiKey);
+      const result = await window.electronAPI.invoke('saveApiKey', { apiKey, modelUrl });
       if (result.success) {
-        alert('API Key 保存成功！');
+        alert('设置保存成功！');
         setApiKey('');
         setShowInput(false);
         // 强制刷新API Key状态
@@ -100,16 +108,16 @@ export const useApiKey = () => {
         return false;
       }
     } catch (error) {
-      console.error('保存API Key失败:', error);
+      console.error('保存设置失败:', error);
       alert(`保存错误: ${error.message}`);
       return false;
     }
-  }, [apiKey, setApiKey, setShowInput, fetchApiKey]);
+  }, [apiKey, modelUrl, setApiKey, setShowInput, fetchApiKey]);
 
   // 在组件挂载时获取API Key状态
   useEffect(() => {
     fetchApiKey();
-  }, []); // 只在组件挂载时执行一次
+  }, []);
 
   // 监听主进程发送的打开API Key设置事件
   useEffect(() => {
@@ -126,9 +134,11 @@ export const useApiKey = () => {
 
   return {
     apiKey,
+    modelUrl,
     showInput,
     status,
     setApiKey,
+    setModelUrl,
     setShowInput,
     saveApiKey,
     fetchApiKey

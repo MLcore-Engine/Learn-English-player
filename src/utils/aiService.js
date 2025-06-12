@@ -180,7 +180,11 @@ Make sure your explanation focuses on the word's usage and context in everyday, 
  */
 class AIService {
   constructor(config = {}) {
-    this.config = { ...defaultConfig, ...config };
+    this.config = { 
+      ...defaultConfig, 
+      ...config,
+      apiUrl: config.modelUrl || defaultConfig.apiUrl // 支持通过modelUrl设置apiUrl
+    };
     this.context = []; // 存储对话上下文
   }
   
@@ -190,6 +194,14 @@ class AIService {
    */
   setApiKey(apiKey) {
     this.config.apiKey = apiKey;
+  }
+  
+  /**
+   * 设置模型URL
+   * @param {string} modelUrl - 模型URL
+   */
+  setModelUrl(modelUrl) {
+    this.config.apiUrl = modelUrl;
   }
   
   /**

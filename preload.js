@@ -61,27 +61,26 @@ const allowedReceiveChannels = [
 
 // 请求频率限制
 const rateLimits = new Map();
-const RATE_LIMIT_WINDOW = 1000; // 1秒
-const MAX_REQUESTS_PER_WINDOW = 10;
+const RATE_LIMIT_WINDOW = 1000; // 1秒内的请求限制
+const RATE_LIMIT_MAX = 5; // 每秒最大请求次数
 
-// 检查请求频率
+// 检查速率限制
 function checkRateLimit(channel) {
   const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW;
+  const channelLimits = rateLimits.get(channel) || [];
   
-  if (!rateLimits.has(channel)) {
-    rateLimits.set(channel, []);
+  // 清理过期的记录
+  const validLimits = channelLimits.filter(time => now - time < RATE_LIMIT_WINDOW);
+  
+  // 如果超过限制，返回true
+  if (validLimits.length >= RATE_LIMIT_MAX) {
+    return true;
   }
   
-  const requests = rateLimits.get(channel);
-  const validRequests = requests.filter(time => time > windowStart);
-  rateLimits.set(channel, validRequests);
-  
-  if (validRequests.length >= MAX_REQUESTS_PER_WINDOW) {
-    throw new Error(`Rate limit exceeded for channel: ${channel}`);
-  }
-  
-  validRequests.push(now);
+  // 添加新的请求时间戳
+  validLimits.push(now);
+  rateLimits.set(channel, validLimits);
+  return false;
 }
 
 // 使用 contextBridge 暴露 API
@@ -192,7 +191,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 数据库相关
   getCategories: () => ipcRenderer.send('getCategories'),
   getMovies: (category_id, page) => ipcRenderer.send('getMovies', { category_id, page }),
-  getWatchTime: (videoId) => ipcRenderer.invoke('getWatchTime', videoId),
+  getWatchTime: (videoId) => {
+    if (checkRateLimit('getWatchTime')) {
+      throw new Error('Rate limit exceeded for channel: getWatchTime');
+    }
+    return ipcRenderer.invoke('getWatchTime', { videoId });
+  },
   updateWatchTime: (watchTimeData) => ipcRenderer.send('updateWatchTime', watchTimeData),
   saveLearningRecord: (record) => ipcRenderer.invoke('saveLearningRecord', record),
   saveAiQuery: (data) => ipcRenderer.invoke('saveAiQuery', data),
