@@ -35,55 +35,55 @@ export async function recognizeSubtitleFromVideo(videoElement) {
     cropHeight
   );
 
-  // --- 添加图像预处理：二值化 ---
-  const imageData = ctx.getImageData(0, 0, width, cropHeight);
+  // --- 图像预处理 ---
+  // 1. 提升图像分辨率 (放大2倍)
+  // Tesseract.js 在处理更高分辨率的图像时通常表现更好，尤其是当原始字幕较小时。
+  const scaleFactor = 2;
+  const scaledCanvas = document.createElement('canvas');
+  const scaledWidth = width * scaleFactor;
+  const scaledHeight = cropHeight * scaleFactor;
+  scaledCanvas.width = scaledWidth;
+  scaledCanvas.height = scaledHeight;
+  const scaledCtx = scaledCanvas.getContext('2d');
+  scaledCtx.imageSmoothingEnabled = false; // 禁用平滑以保持边缘清晰
+  scaledCtx.drawImage(canvas, 0, 0, scaledWidth, scaledHeight);
+
+  // 2. 图像二值化
+  // 注意：这是一个简单的固定阈值方法。对于不同颜色或亮度的字幕，效果可能不稳定。
+  // 更高级的方法是"自适应阈值"，但这在前端 Canvas 中实现复杂。
+  // 这里的阈值(200)是基于"亮色文字、暗色背景"的常见假设。
+  const imageData = scaledCtx.getImageData(0, 0, scaledWidth, scaledHeight);
   const data = imageData.data;
-  const threshold = 200; // 阈值可以根据实际情况调整
+  const threshold = 200; 
 
   for (let i = 0; i < data.length; i += 4) {
-    // 计算灰度值 (简单的平均法)
-    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-
-    // 二值化：如果灰度值低于阈值，设为黑色；否则设为白色
+    // 使用加权平均法计算灰度值，更符合人眼感知
+    const avg = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    
+    // 如果灰度值低于阈值，设为黑色；否则设为白色
     const color = avg < threshold ? 0 : 255;
     data[i] = color;     // Red
     data[i + 1] = color; // Green
     data[i + 2] = color; // Blue
-    // Alpha (data[i + 3]) 不变
   }
 
-  ctx.putImageData(imageData, 0, 0);
-  // -------------------------------
+  scaledCtx.putImageData(imageData, 0, 0);
+  // --- 预处理结束 ---
 
   // 转成 dataURL 供 Tesseract.js 识别
-  const dataUrl = canvas.toDataURL('image/png');
+  const dataUrl = scaledCanvas.toDataURL('image/png');
 
   // 创建并初始化 Tesseract.js 工作线程
+  // 性能提示: 在实际应用中，建议初始化一个worker并复用，而不是每次调用都创建新的。
+  // 这需要调整应用架构，例如在组件挂载时创建，在卸载时销毁。
   const worker = await createWorker();
   
-  // 优化 Tesseract.js 参数配置
+  // 简化 Tesseract.js 参数配置，保留核心设置
+  // 移除了过于具体和可能产生冲突的 `textord_*` 参数，依赖 Tesseract 的通用算法。
   await worker.setParameters({
-    tessedit_pageseg_mode: '7', // PSM 7 = 将图像视为单行文本
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?\'\"“”‘’ ', // 只允许英文字符
-    ocr_engine_mode: '1', // OCM 1 = 只使用 LSTM 引擎
-    preserve_interword_spaces: '1', // 保留词间空格
-    textord_heavy_nr: '1', // 增强降噪
-    textord_min_linesize: '2.5', // 最小行高
-    textord_max_linesize: '3.5', // 最大行高
-    textord_parallel_baselines: '1', // 并行基线检测
-    textord_parallel_lines: '1', // 并行线检测
-    textord_parallel_scale: '0.5', // 并行缩放
-    textord_parallel_skew: '0.5', // 并行倾斜
-    textord_parallel_skew_scale: '0.5', // 并行倾斜缩放
-    textord_parallel_skew_scale2: '0.5', // 并行倾斜缩放2
-    textord_parallel_skew_scale3: '0.5', // 并行倾斜缩放3
-    textord_parallel_skew_scale4: '0.5', // 并行倾斜缩放4
-    textord_parallel_skew_scale5: '0.5', // 并行倾斜缩放5
-    textord_parallel_skew_scale6: '0.5', // 并行倾斜缩放6
-    textord_parallel_skew_scale7: '0.5', // 并行倾斜缩放7
-    textord_parallel_skew_scale8: '0.5', // 并行倾斜缩放8
-    textord_parallel_skew_scale9: '0.5', // 并行倾斜缩放9
-    textord_parallel_skew_scale10: '0.5', // 并行倾斜缩放10
+    tessedit_pageseg_mode: '7', // PSM 7 = 将图像视为单行文本，适合字幕
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?\'" ', // 简化的白名单
+    preserve_interword_spaces: '1', // 保留词间空格，对句子很重要
   });
 
   const { data: { text } } = await worker.recognize(dataUrl);
@@ -111,46 +111,3 @@ export async function recognizeSubtitleFromVideo(videoElement) {
   console.log('【OCR】清理后结果:', cleanedText);
   return cleanedText;
 }
-
-// 计算块平均值
-function calculateBlockAverage(data, x, y, width, height, blockSize) {
-  let sum = 0;
-  let count = 0;
-  const halfBlock = Math.floor(blockSize / 2);
-  
-  for (let dy = -halfBlock; dy <= halfBlock; dy++) {
-    for (let dx = -halfBlock; dx <= halfBlock; dx++) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-        const idx = (ny * width + nx) * 4;
-        sum += data[idx];
-        count++;
-      }
-    }
-  }
-  return sum / count;
-}
-
-// 检测噪点
-function isNoisePixel(data, x, y, width) {
-  const idx = (y * width + x) * 4;
-  const center = data[idx];
-  
-  // 检查周围8个像素
-  const neighbors = [
-    data[(y-1) * width * 4 + (x-1) * 4],
-    data[(y-1) * width * 4 + x * 4],
-    data[(y-1) * width * 4 + (x+1) * 4],
-    data[y * width * 4 + (x-1) * 4],
-    data[y * width * 4 + (x+1) * 4],
-    data[(y+1) * width * 4 + (x-1) * 4],
-    data[(y+1) * width * 4 + x * 4],
-    data[(y+1) * width * 4 + (x+1) * 4]
-  ];
-  
-  // 如果中心像素与周围像素差异太大，认为是噪点
-  const threshold = 50;
-  const differentNeighbors = neighbors.filter(n => Math.abs(n - center) > threshold).length;
-  return differentNeighbors >= 6;
-} 
